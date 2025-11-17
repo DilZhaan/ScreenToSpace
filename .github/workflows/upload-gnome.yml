@@ -1,0 +1,114 @@
+name: Upload to GNOME Extensions
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to upload (leave empty for current)'
+        required: false
+        type: string
+      force:
+        description: 'Force overwrite existing version'
+        required: false
+        type: boolean
+        default: false
+  
+  # Also trigger on successful release
+  workflow_run:
+    workflows: ["Release - Create and Publish"]
+    types:
+      - completed
+
+jobs:
+  upload-to-gnome:
+    name: Upload to extensions.gnome.org
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' || 
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Get version info
+      id: version
+      run: |
+        if [ -n "${{ github.event.inputs.version }}" ]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION=$(jq -r '.version' src/metadata.json)
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Using version: $VERSION"
+    
+    - name: Verify credentials
+      run: |
+        if [ -z "${{ secrets.EGO_USERNAME }}" ] || [ -z "${{ secrets.EGO_PASSWORD }}" ]; then
+          echo "❌ Error: GNOME Extensions credentials not configured"
+          echo ""
+          echo "To configure credentials:"
+          echo "1. Go to: Repository → Settings → Secrets and variables → Actions"
+          echo "2. Add secret: EGO_USERNAME (your extensions.gnome.org username)"
+          echo "3. Add secret: EGO_PASSWORD (your extensions.gnome.org password)"
+          echo ""
+          echo "Manual upload required at: https://extensions.gnome.org/upload/"
+          exit 1
+        fi
+        echo "✓ Credentials configured"
+    
+    - name: Package and Upload Extension
+      uses: murar8/gnome-extensions-action@v0.1.0
+      with:
+        source-dir: ./src
+        username: ${{ secrets.EGO_USERNAME }}
+        password: ${{ secrets.EGO_PASSWORD }}
+        accept-tos: true
+        force: ${{ github.event.inputs.force || false }}
+      id: upload
+    
+    - name: Upload Success
+      if: success()
+      run: |
+        echo "🎉 Successfully uploaded to extensions.gnome.org!"
+        echo ""
+        echo "Extension details:"
+        echo "  • Version: ${{ steps.version.outputs.version }}"
+        echo "  • Package: ${{ steps.upload.outputs.zip-file }}"
+        echo ""
+        echo "Next steps:"
+        echo "  • Extension will be reviewed by GNOME Extensions team"
+        echo "  • You will receive an email notification"
+        echo "  • Review typically takes 1-3 days"
+        echo ""
+        echo "Monitor status at: https://extensions.gnome.org/accounts/profile/"
+    
+    - name: Upload Failed
+      if: failure()
+      run: |
+        echo "❌ Upload to extensions.gnome.org failed"
+        echo ""
+        echo "Common reasons for failure:"
+        echo "  • Invalid credentials"
+        echo "  • Extension not yet registered on extensions.gnome.org"
+        echo "  • Version already exists (use force option to overwrite)"
+        echo "  • Extension doesn't meet guidelines"
+        echo "  • Network or server issues"
+        echo ""
+        echo "📋 Manual Upload Instructions:"
+        echo "1. Download package from GitHub Releases or build locally"
+        echo "2. Go to: https://extensions.gnome.org/upload/"
+        echo "3. Upload the .zip file"
+        echo "4. Fill in required details"
+        echo "5. Submit for review"
+        echo ""
+        echo "See PUBLISHING.md for detailed troubleshooting"
+    
+    - name: Upload artifact as fallback
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-package-ego-${{ steps.version.outputs.version }}
+        path: ${{ steps.upload.outputs.zip-file || 'build/screentospace@dilzhan.dev.zip' }}
+        retention-days: 30
+        if-no-files-found: ignore

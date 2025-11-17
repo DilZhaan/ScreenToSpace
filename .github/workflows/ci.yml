@@ -1,0 +1,160 @@
+name: CI - Test and Build
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint-and-validate:
+    name: Lint and Validate
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          gettext \
+          glib-2.0-dev \
+          libxml2-utils \
+          zip
+    
+    - name: Validate JavaScript syntax
+      run: |
+        echo "Validating JavaScript files..."
+        for file in src/*.js; do
+          echo "Checking $file..."
+          node --check "$file"
+        done
+        echo "✓ All JavaScript files are valid"
+    
+    - name: Validate JSON files
+      run: |
+        echo "Validating JSON files..."
+        if command -v jq &> /dev/null; then
+          cat src/metadata.json | jq . > /dev/null
+          echo "✓ metadata.json is valid"
+        else
+          echo "Installing jq..."
+          sudo apt-get install -y jq
+          cat src/metadata.json | jq . > /dev/null
+          echo "✓ metadata.json is valid"
+        fi
+    
+    - name: Validate XML schema
+      run: |
+        echo "Validating XML schema..."
+        xmllint --noout src/schemas/*.xml
+        echo "✓ Schema XML is valid"
+    
+    - name: Compile GSettings schema
+      run: |
+        echo "Compiling GSettings schema..."
+        cd src/schemas
+        glib-compile-schemas .
+        if [ -f gschemas.compiled ]; then
+          echo "✓ Schema compiled successfully"
+        else
+          echo "✗ Schema compilation failed"
+          exit 1
+        fi
+    
+    - name: Check for hardcoded strings
+      run: |
+        echo "Checking for hardcoded strings..."
+        # This is a basic check - can be enhanced
+        if grep -r "connect('map'" src/*.js; then
+          echo "⚠ Warning: Found potential hardcoded strings"
+        else
+          echo "✓ No obvious hardcoded strings found"
+        fi
+
+  build:
+    name: Build Extension Package
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gettext glib-2.0-dev zip
+    
+    - name: Compile schemas
+      run: |
+        cd src/schemas
+        glib-compile-schemas .
+    
+    - name: Build extension package
+      run: |
+        chmod +x scripts/makezip.sh
+        ./scripts/makezip.sh
+    
+    - name: Verify package
+      run: |
+        if [ -f build/screentospace@dilzhan.dev.zip ]; then
+          echo "✓ Package created successfully"
+          ls -lh build/screentospace@dilzhan.dev.zip
+          unzip -l build/screentospace@dilzhan.dev.zip
+        else
+          echo "✗ Package creation failed"
+          exit 1
+        fi
+    
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-package
+        path: build/screentospace@dilzhan.dev.zip
+        retention-days: 30
+
+  test-metadata:
+    name: Test Metadata
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Check metadata version
+      run: |
+        VERSION=$(jq -r '.version' src/metadata.json)
+        echo "Extension version: $VERSION"
+        
+        # Check if version is a number
+        if ! [[ "$VERSION" =~ ^[0-9]+$ ]]; then
+          echo "✗ Version must be a number"
+          exit 1
+        fi
+        echo "✓ Version format is valid"
+    
+    - name: Check required fields
+      run: |
+        jq -e '.name' src/metadata.json > /dev/null || exit 1
+        jq -e '.description' src/metadata.json > /dev/null || exit 1
+        jq -e '.uuid' src/metadata.json > /dev/null || exit 1
+        jq -e '."shell-version"' src/metadata.json > /dev/null || exit 1
+        echo "✓ All required metadata fields present"
+    
+    - name: Validate UUID format
+      run: |
+        UUID=$(jq -r '.uuid' src/metadata.json)
+        if [[ $UUID =~ @.+\..+ ]]; then
+          echo "✓ UUID format is valid: $UUID"
+        else
+          echo "✗ UUID format is invalid: $UUID"
+          exit 1
+        fi

@@ -1,0 +1,98 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+jobs:
+  bump-version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Install jq
+      run: sudo apt-get update && sudo apt-get install -y jq
+    
+    - name: Get current version
+      id: current_version
+      run: |
+        CURRENT=$(jq -r '.version' src/metadata.json)
+        echo "current=$CURRENT" >> $GITHUB_OUTPUT
+        echo "Current version: $CURRENT"
+    
+    - name: Calculate new version
+      id: new_version
+      run: |
+        CURRENT=${{ steps.current_version.outputs.current }}
+        TYPE=${{ github.event.inputs.version_type }}
+        
+        # For GNOME extensions, version is typically just an integer
+        # Increment by 1 regardless of type
+        NEW=$((CURRENT + 1))
+        
+        echo "new=$NEW" >> $GITHUB_OUTPUT
+        echo "tag=v$NEW.0.0" >> $GITHUB_OUTPUT
+        echo "New version: $NEW (tag: v$NEW.0.0)"
+    
+    - name: Update metadata.json
+      run: |
+        NEW_VERSION=${{ steps.new_version.outputs.new }}
+        jq ".version = $NEW_VERSION" src/metadata.json > src/metadata.json.tmp
+        mv src/metadata.json.tmp src/metadata.json
+        echo "Updated metadata.json to version $NEW_VERSION"
+    
+    - name: Update CHANGELOG.md
+      run: |
+        NEW_VERSION=${{ steps.new_version.outputs.new }}
+        DATE=$(date +%Y-%m-%d)
+        
+        # Create temporary file with new entry
+        echo "## [$NEW_VERSION] - $DATE" > changelog_new.txt
+        echo "" >> changelog_new.txt
+        echo "### Added" >> changelog_new.txt
+        echo "- Version bump" >> changelog_new.txt
+        echo "" >> changelog_new.txt
+        
+        # Insert after the header (line 3)
+        head -n 3 CHANGELOG.md > CHANGELOG.md.tmp
+        cat changelog_new.txt >> CHANGELOG.md.tmp
+        tail -n +4 CHANGELOG.md >> CHANGELOG.md.tmp
+        mv CHANGELOG.md.tmp CHANGELOG.md
+        rm changelog_new.txt
+        
+        echo "Updated CHANGELOG.md"
+    
+    - name: Commit changes
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add src/metadata.json CHANGELOG.md
+        git commit -m "chore: bump version to ${{ steps.new_version.outputs.new }}"
+        git push
+    
+    - name: Create tag
+      run: |
+        git tag ${{ steps.new_version.outputs.tag }}
+        git push origin ${{ steps.new_version.outputs.tag }}
+        echo "Created and pushed tag: ${{ steps.new_version.outputs.tag }}"
