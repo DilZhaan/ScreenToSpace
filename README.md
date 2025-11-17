@@ -6,6 +6,8 @@ A GNOME Shell extension that automatically organizes your workspace by moving ma
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
 [![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-49%2B-blue.svg)](https://www.gnome.org/)
+[![CI](https://github.com/DilZhaan/ScreenToSpace/workflows/CI/badge.svg)](https://github.com/DilZhaan/ScreenToSpace/actions/workflows/ci.yml)
+[![Release](https://github.com/DilZhaan/ScreenToSpace/workflows/Release/badge.svg)](https://github.com/DilZhaan/ScreenToSpace/actions/workflows/release.yml)
 
 ---
 
