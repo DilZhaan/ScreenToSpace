@@ -8,5 +8,8 @@
   ],
   "version": 1,
   "settings-schema": "org.gnome.shell.extensions.screentospace",
-  "icon": "icon.svg"
+  "icon": "icon.svg",
+  "donations": {
+    "buymeacoffee": "dilzhan"
+  }
 }
