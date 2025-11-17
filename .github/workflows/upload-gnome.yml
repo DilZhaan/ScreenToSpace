@@ -58,7 +58,7 @@ jobs:
         echo "✓ Credentials configured"
     
     - name: Package and Upload Extension
-      uses: murar8/gnome-extensions-action@v0.1.0
+      uses: murar8/gnome-extensions-action@0.1.0
       with:
         source-dir: ./src
         username: ${{ secrets.EGO_USERNAME }}

@@ -109,7 +109,7 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
     
     - name: Package and Upload to extensions.gnome.org
-      uses: murar8/gnome-extensions-action@v0.1.0
+      uses: murar8/gnome-extensions-action@0.1.0
       with:
         source-dir: ./src
         username: ${{ secrets.EGO_USERNAME }}
