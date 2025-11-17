@@ -1,0 +1,39 @@
+INSTRUCTIONS: How to Add Your Logo to ScreenToSpace Extension
+================================================================
+
+Step 1: Save Your Logo File
+----------------------------
+1. You have the file: Gemini_Generated_Image_12nvbi12nvbi12nv-removebg-preview.svg
+2. Copy it to the extension src directory:
+   
+   cp ~/Downloads/Gemini_Generated_Image_12nvbi12nvbi12nv-removebg-preview.svg src/icon.svg
+   
+   OR if it's in your Desktop:
+   
+   cp ~/Desktop/Gemini_Generated_Image_12nvbi12nvbi12nv-removebg-preview.svg src/icon.svg
+
+Step 2: Update metadata.json to Reference the Icon
+---------------------------------------------------
+Add this line to src/metadata.json (after "version" line):
+
+  "icon": "icon.svg"
+
+Step 3: Rebuild the Extension
+------------------------------
+Run:
+   ./scripts/makezip.sh
+
+Step 4: Test Locally (Optional)
+--------------------------------
+   ./scripts/deploy.sh
+   gnome-extensions prefs screentospace@dilzhan.dev
+
+The icon should appear in the Extensions app!
+
+Step 5: Commit and Push
+-----------------------
+   git add src/icon.svg src/metadata.json
+   git commit -m "feat: add extension logo icon"
+   git push origin main
+
+DONE! 🎉
