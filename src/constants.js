@@ -1,6 +1,9 @@
 /**
  * ScreenToSpace - Constants
  * 
+ * Centralized constants for the extension.
+ * All string literals and magic values should be defined here.
+ * 
  * @author DilZhaan
  * @license GPL-2.0-or-later
  */
@@ -14,8 +17,26 @@ export const ExtensionConstants = {
     MARKER_PLACE: 'place',
     MARKER_BACK: 'back',
     
+    // Window manager signal names
+    SIGNAL_MAP: 'map',
+    SIGNAL_DESTROY: 'destroy',
+    SIGNAL_UNMINIMIZE: 'unminimize',
+    SIGNAL_MINIMIZE: 'minimize',
+    SIGNAL_SIZE_CHANGE: 'size-change',
+    SIGNAL_SIZE_CHANGED: 'size-changed',
+    SIGNAL_SWITCH_WORKSPACE: 'switch-workspace',
+    
+    // GSettings schema IDs
+    SCHEMA_MUTTER: 'org.gnome.mutter',
+    SCHEMA_SCREENTOSPACE: 'org.gnome.shell.extensions.screentospace',
+    
+    // Settings keys (mutter)
+    SETTING_WORKSPACES_ONLY_PRIMARY: 'workspaces-only-on-primary',
+    
     // Extension metadata
     NAME: 'ScreenToSpace',
     AUTHOR: 'DilZhaan',
     URL: 'https://github.com/DilZhaan/ScreenToSpace',
+    UUID: 'screentospace@dilzhan.dev',
+    DOMAIN: 'screentospace',
 };

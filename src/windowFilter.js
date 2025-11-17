@@ -9,6 +9,7 @@
  */
 
 import Meta from 'gi://Meta';
+import { ExtensionConstants } from './constants.js';
 
 /**
  * Filters and validates windows for placement
@@ -94,7 +95,7 @@ export class WindowFilter {
      * @returns {boolean}
      */
     _isMaximizeEnabled() {
-        return this._settings.get_boolean('move-window-when-maximized');
+        return this._settings.get_boolean(ExtensionConstants.SETTING_MOVE_WHEN_MAXIMIZED);
     }
 
     /**

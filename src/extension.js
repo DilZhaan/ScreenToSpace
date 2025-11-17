@@ -19,6 +19,7 @@ import { WorkspaceManager } from './workspaceManager.js';
 import { WindowPlacementHandler } from './windowPlacement.js';
 import { WindowFilter } from './windowFilter.js';
 import { WindowEventHandler } from './eventHandler.js';
+import { ExtensionConstants } from './constants.js';
 
 /**
  * Main extension class implementing the ScreenToSpace functionality
@@ -65,17 +66,18 @@ export default class ScreenToSpaceExtension extends Extension {
      */
     _connectSignals() {
         const wm = global.window_manager;
+        const C = ExtensionConstants;
         
         this._signalHandles = [
-            wm.connect('map', (_, actor) => this._eventHandler.onWindowMap(actor)),
-            wm.connect('destroy', (_, actor) => this._eventHandler.onWindowDestroy(actor)),
-            wm.connect('unminimize', (_, actor) => this._eventHandler.onWindowUnminimize(actor)),
-            wm.connect('minimize', (_, actor) => this._eventHandler.onWindowMinimize(actor)),
-            wm.connect('size-change', (_, actor, change, oldRect) => 
+            wm.connect(C.SIGNAL_MAP, (_, actor) => this._eventHandler.onWindowMap(actor)),
+            wm.connect(C.SIGNAL_DESTROY, (_, actor) => this._eventHandler.onWindowDestroy(actor)),
+            wm.connect(C.SIGNAL_UNMINIMIZE, (_, actor) => this._eventHandler.onWindowUnminimize(actor)),
+            wm.connect(C.SIGNAL_MINIMIZE, (_, actor) => this._eventHandler.onWindowMinimize(actor)),
+            wm.connect(C.SIGNAL_SIZE_CHANGE, (_, actor, change, oldRect) => 
                 this._eventHandler.onWindowSizeChange(actor, change, oldRect)),
-            wm.connect('size-changed', (_, actor) => 
+            wm.connect(C.SIGNAL_SIZE_CHANGED, (_, actor) => 
                 this._eventHandler.onWindowSizeChanged(actor)),
-            wm.connect('switch-workspace', () => 
+            wm.connect(C.SIGNAL_SWITCH_WORKSPACE, () => 
                 this._eventHandler.onWorkspaceSwitch()),
         ];
     }

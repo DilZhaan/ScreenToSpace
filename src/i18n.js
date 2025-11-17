@@ -8,8 +8,9 @@
  */
 
 import Gettext from 'gettext';
+import { ExtensionConstants } from './constants.js';
 
-const Domain = Gettext.domain('screentospace');
+const Domain = Gettext.domain(ExtensionConstants.DOMAIN);
 
 /**
  * Translation function

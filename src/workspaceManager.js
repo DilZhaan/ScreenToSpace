@@ -9,13 +9,16 @@
  */
 
 import Gio from 'gi://Gio';
+import { ExtensionConstants } from './constants.js';
 
 /**
  * Manages workspace discovery and queries
  */
 export class WorkspaceManager {
     constructor() {
-        this._mutterSettings = new Gio.Settings({ schema_id: 'org.gnome.mutter' });
+        this._mutterSettings = new Gio.Settings({ 
+            schema_id: ExtensionConstants.SCHEMA_MUTTER 
+        });
     }
 
     /**
@@ -76,7 +79,9 @@ export class WorkspaceManager {
      * @returns {boolean}
      */
     isWorkspacesOnlyOnPrimary() {
-        return this._mutterSettings.get_boolean('workspaces-only-on-primary');
+        return this._mutterSettings.get_boolean(
+            ExtensionConstants.SETTING_WORKSPACES_ONLY_PRIMARY
+        );
     }
 
     /**
