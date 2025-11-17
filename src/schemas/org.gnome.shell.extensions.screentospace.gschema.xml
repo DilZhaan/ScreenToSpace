@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ScreenToSpace - GSettings Schema
+  
+  @author DilZhaan
+  @license GPL-2.0-or-later
+-->
+<schemalist>
+  <schema id="org.gnome.shell.extensions.screentospace" path="/org/gnome/shell/extensions/screentospace/">
+    <key name="move-window-when-maximized" type="b">
+      <default>true</default>
+      <summary>Move window when maximized</summary>
+      <description>
+        Automatically move maximized windows to empty workspaces.
+        When enabled, both maximized and fullscreen windows will be moved.
+        When disabled, only fullscreen windows will be moved.
+      </description>
+    </key>
+  </schema>
+</schemalist>

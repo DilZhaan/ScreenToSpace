@@ -1,0 +1,50 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2025 DilZhaan
+# This file is distributed under the same license as the ScreenToSpace package.
+# DilZhaan <dilzhaan@github.com>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: ScreenToSpace\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-17 12:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: DilZhaan <dilzhaan@github.com>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: prefs.js
+msgid "ScreenToSpace Preferences"
+msgstr ""
+
+#: prefs.js
+msgid "Window Behavior"
+msgstr ""
+
+#: prefs.js
+msgid "Move window when maximized"
+msgstr ""
+
+#: prefs.js
+msgid "Automatically move maximized windows to empty workspaces"
+msgstr ""
+
+#: prefs.js
+msgid "About"
+msgstr ""
+
+#: prefs.js
+msgid "ScreenToSpace Extension"
+msgstr ""
+
+#: prefs.js
+msgid "Developed by DilZhaan"
+msgstr ""
+
+#: prefs.js
+msgid "Version"
+msgstr ""

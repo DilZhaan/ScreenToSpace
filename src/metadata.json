@@ -1,0 +1,11 @@
+{
+  "name": "ScreenToSpace",
+  "description": "Automatically moves maximized and fullscreen windows to empty workspaces. Provides a clean, organized multi-tasking experience with support for multiple monitors.",
+  "url": "https://github.com/DilZhaan/ScreenToSpace",
+  "uuid": "screentospace@dilzhan.dev",
+  "shell-version": [
+    "49"
+  ],
+  "version": 1,
+  "settings-schema": "org.gnome.shell.extensions.screentospace"
+}
