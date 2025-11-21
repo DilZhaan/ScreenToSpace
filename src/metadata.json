@@ -6,7 +6,7 @@
   "shell-version": [
     "49"
   ],
-  "version": 1,
+  "version": 2,
   "settings-schema": "org.gnome.shell.extensions.screentospace",
   "donations": {
     "buymeacoffee": "dilzhan"
