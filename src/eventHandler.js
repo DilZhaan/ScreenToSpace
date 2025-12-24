@@ -39,7 +39,7 @@ export class WindowEventHandler {
     onWindowDestroy(actor) {
         const window = actor.meta_window;
         
-        if (!this._windowFilter.isNormalWindow(window)) {
+        if (!this._windowFilter.isManagedWindow(window)) {
             return;
         }
         
@@ -65,7 +65,7 @@ export class WindowEventHandler {
     onWindowMinimize(actor) {
         const window = actor.meta_window;
         
-        if (!this._windowFilter.isNormalWindow(window)) {
+        if (!this._windowFilter.isManagedWindow(window)) {
             return;
         }
         

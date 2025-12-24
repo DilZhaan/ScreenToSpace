@@ -1,245 +1,275 @@
 # ScreenToSpace
 
-> **Intelligent Window Management for GNOME Shell 49+**
-
-A GNOME Shell extension that automatically organizes your workspace by moving maximized and fullscreen windows to empty workspaces. Keep your workflow clean and organized with intelligent multi-monitor support.
+A GNOME Shell extension that automatically moves maximized and fullscreen windows to empty workspaces, keeping your workflow organized without manual intervention. Includes per-application filtering and multi-monitor support.
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
-[![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-49%2B-blue.svg)](https://www.gnome.org/)
+[![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-49-blue.svg)](https://www.gnome.org/)
 
 ---
 
-## ✨ Features
+## Features
 
-- 🖥️ **Automatic Workspace Management**: Maximized and fullscreen windows automatically move to empty workspaces
-- 🎯 **Smart Window Placement**: Intelligently reorders workspaces to maintain workflow continuity
-- 🖼️ **Multi-Monitor Support**: Works seamlessly across multiple displays
-- ⚙️ **Configurable Behavior**: Choose whether to move maximized windows, fullscreen windows, or both
-- 🔄 **Dynamic Workspace Handling**: Automatically manages workspace creation and cleanup
-- 🌐 **Internationalization Ready**: Built-in i18n support for multiple languages
+### Core Functionality
+- **Automatic workspace isolation** — Maximized and fullscreen windows move to empty workspaces, one window per space
+- **Smart workspace reordering** — Minimized disruption to existing window layout when creating or destroying isolated workspaces
+- **Multi-monitor aware** — Respects GNOME's "workspaces on primary display only" setting; handles per-monitor workspace assignment correctly
 
----
-
-## 📋 Requirements
-
-- **GNOME Shell**: Version 49 or higher
-- **Operating System**: Linux with GNOME desktop environment
-- **Dependencies**: Standard GNOME Shell extensions dependencies
+### Application Filtering
+- **Blacklist mode** (default) — Exclude specific apps from automatic workspace management (e.g., Telegram, WhatsApp, Brave)
+- **Whitelist mode** — Only manage explicitly listed apps; all others remain in their current workspace
+- **Multi-select app chooser** — Select multiple applications at once with search and checkbox UI
+- **Per-app granularity** — Filter by desktop app ID with automatic normalization (strips `.desktop` suffix for matching)
 
 ---
 
-## 🚀 Installation
+## Screenshots
 
-### Method 1: Manual Installation (Recommended for Development)
+### Settings Tab
+Configure window behavior and filter mode:
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/DilZhaan/ScreenToSpace.git
-   cd ScreenToSpace
-   ```
+![Settings Tab](screenshots/Settings.png)
 
-2. **Deploy the extension**:
-   ```bash
-   chmod +x scripts/deploy.sh
-   ./scripts/deploy.sh
-   ```
+### App List Management
+View and manage blacklisted/whitelisted applications:
 
-3. **Restart GNOME Shell**:
-   - On X11: Press `Alt + F2`, type `r`, and press Enter
-   - On Wayland: Log out and log back in
+![App List Tab](screenshots/AppList.png)
 
-4. **Enable the extension**:
-   ```bash
-   gnome-extensions enable screentospace@dilzhan.dev
-   ```
+### Multi-Select App Chooser
+Select multiple apps at once with search:
 
-### Method 2: Build and Install from ZIP
+![App Selector](screenshots/AppSelector.png)
 
-1. **Build the extension**:
-   ```bash
-   chmod +x scripts/makezip.sh
-   ./scripts/makezip.sh
-   ```
+### About
+Extension information and version details:
 
-2. **Install the ZIP file**:
-   ```bash
-   gnome-extensions install build/screentospace@dilzhan.dev.zip
-   ```
-
-3. **Enable the extension**:
-   ```bash
-   gnome-extensions enable screentospace@dilzhan.dev
-   ```
+![About Tab](screenshots/About.png)
 
 ---
 
-## ⚙️ Configuration
+## Requirements
 
-Access the extension preferences through:
-- GNOME Extensions app → ScreenToSpace → Settings
-- Command line: `gnome-extensions prefs screentospace@dilzhan.dev`
-
-### Available Settings
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Move Window When Maximized** | Automatically move maximized windows to empty workspaces. When enabled, both maximized and fullscreen windows are moved. When disabled, only fullscreen windows are moved. | ✅ Enabled |
+- GNOME Shell 49
+- Standard GNOME Shell extension runtime (no additional dependencies)
 
 ---
 
-## 🎯 How It Works
+## Installation
 
-### Window Placement Strategy
+### From source (development or manual install)
 
-1. **New Maximized/Fullscreen Window**:
-   - Extension detects a window entering fullscreen or maximized state
-   - Finds the first available empty workspace on the same monitor
-   - Intelligently reorders workspaces to place the window without disrupting workflow
-   - Other windows remain in their original positions
+```bash
+git clone https://github.com/DilZhaan/ScreenToSpace.git
+cd ScreenToSpace
+```
 
-2. **Window Restore**:
-   - When a window is un-maximized or exits fullscreen
-   - If the workspace becomes empty, it's automatically reorganized
-   - Window returns to the last occupied workspace on the same monitor
+**Compile schemas and install:**
+```bash
+glib-compile-schemas src/schemas
+mkdir -p ~/.local/share/gnome-shell/extensions/screentospace@dilzhan.dev
+rsync -av --delete src/ ~/.local/share/gnome-shell/extensions/screentospace@dilzhan.dev/
+```
 
-### Multi-Monitor Behavior
+**Enable the extension:**
+```bash
+gnome-extensions enable screentospace@dilzhan.dev
+```
 
-- **Workspaces Only on Primary**: Only the primary monitor has multiple workspaces; extension works exclusively on the primary display
-- **Workspaces on All Monitors**: Extension manages workspaces independently for each monitor
+**Restart GNOME Shell:**
+- X11: `Alt+F2`, type `r`, press Enter
+- Wayland: Log out and back in
+
+### From ZIP archive
+
+```bash
+./scripts/makezip.sh
+gnome-extensions install build/screentospace@dilzhan.dev.zip --force
+gnome-extensions enable screentospace@dilzhan.dev
+```
 
 ---
 
-## 🏗️ Architecture
+## Configuration
 
-This extension is built following SOLID principles with a modular, maintainable architecture:
+Open preferences via GNOME Extensions app or:
+```bash
+gnome-extensions prefs screentospace@dilzhan.dev
+```
+
+### Settings Tab
+
+**Window Behavior**
+- *Move window when maximized* — Enable or disable automatic workspace isolation for maximized windows (fullscreen always triggers isolation regardless of this setting)
+
+**App Filtering**
+- *Filter mode* — Choose **Blacklist** (ignore listed apps) or **Whitelist** (manage only listed apps)
+- *Configured apps* — Shows current app count; click through to App List tab to manage
+
+### App List Tab
+
+**Add Application** (top section)
+- Opens multi-select dialog with search bar
+- Filter by app name or desktop ID
+- Select multiple apps with checkboxes; click "Add Selected (N)" to confirm
+
+**Blacklisted/Whitelisted Apps** (bottom section)
+- Shows app icon, name, and desktop ID for each entry
+- Remove button (circular trash icon) per app
+- Empty state prompts to add apps using button above
+
+### About Tab
+
+Extension metadata: name, author, version, repository link
+
+---
+
+## How It Works
+
+### Window lifecycle
+
+**Placement (window enters maximized/fullscreen state):**
+1. Extension detects size-change signal from window manager
+2. `WindowFilter` checks if window qualifies: normal window type, matches app filter rules, entering maximize/fullscreen state
+3. `WorkspaceManager` scans for first empty workspace on the same monitor
+4. `WindowPlacementHandler` reorders workspaces (swaps empty workspace to current position, moves current to empty's former position)
+5. Other windows on the original workspace stay put; newly isolated window moves to the former-empty workspace
+
+**Return (window exits maximized/fullscreen state):**
+1. Extension detects size-change signal indicating unmaximize/unfullscreen
+2. If the now-normal window is alone on its workspace, find the last occupied workspace (scan backwards from current index, then forwards)
+3. Reorder: swap current workspace back to the occupied workspace's position
+4. Window effectively "returns" to a workspace with other windows
+
+### App filtering details
+
+- App IDs are normalized: lowercased, `.desktop` suffix stripped
+- Window IDs resolved via `get_gtk_application_id()`, `get_wm_class_instance()`, or `get_wm_class()` (first non-null match)
+- **Blacklist mode**: If app ID is in blacklist, skip workspace isolation (window stays in current workspace regardless of maximize/fullscreen)
+- **Whitelist mode**: If whitelist is non-empty, only manage windows whose app ID is in the whitelist; all others are ignored
+- Empty whitelist in whitelist mode = manage nothing (explicit opt-in required)
+
+### Multi-monitor behavior
+
+Respects GNOME's "Workspaces on primary display only" setting:
+- **Primary-only mode**: Only the primary monitor's workspace changes trigger isolation; other monitors' windows are left alone
+- **All-monitors mode**: Each monitor has independent workspace stacks; extension manages workspaces per-monitor (checks `window.get_monitor()` and only scans workspaces for windows on that monitor)
+
+---
+
+## Architecture
+
+Modular design following Single Responsibility Principle:
 
 ```
 src/
-├── extension.js           # Main extension entry point
-├── constants.js          # Centralized constants and strings (i18n ready)
-├── eventHandler.js       # Window manager event handling (SRP)
-├── windowFilter.js       # Window eligibility filtering (SRP)
-├── windowPlacement.js    # Window placement logic (SRP)
-├── workspaceManager.js   # Workspace operations (SRP)
-├── i18n.js              # Internationalization utilities
-├── prefs.js             # Preferences UI
-└── schemas/             # GSettings schemas
+├── extension.js          # Entry point, signal wiring, lifecycle
+├── constants.js          # Centralized string literals and settings keys
+├── eventHandler.js       # Window manager signal dispatcher
+├── windowFilter.js       # Eligibility predicate (window type, app filter, state checks)
+├── windowPlacement.js    # Workspace reorder logic, window movement
+├── workspaceManager.js   # Workspace queries (find empty, find occupied)
+├── prefs.js              # Preferences UI (Adw, three-tab layout)
+└── schemas/
     └── org.gnome.shell.extensions.screentospace.gschema.xml
 ```
 
-### Key Design Principles
-
-- **Single Responsibility Principle**: Each module handles one specific concern
-- **Open/Closed Principle**: Extensible without modifying core logic
-- **Dependency Inversion**: High-level modules don't depend on low-level details
-- **Interface Segregation**: Clean, focused interfaces for each component
-- **DRY (Don't Repeat Yourself)**: No code duplication, centralized logic
+**Key modules:**
+- `WindowFilter` — `isManagedWindow(window)` combines type check + app filter logic; app ID normalization and blacklist/whitelist evaluation happen here
+- `WindowPlacementHandler` — `placeWindowOnWorkspace(window)`, `returnWindowToOldWorkspace(window)` encapsulate the workspace swap operations
+- `WorkspaceManager` — `getFirstFreeWorkspace(manager, monitor)`, `getLastOccupiedWorkspace(manager, currentIndex, monitor)` abstract workspace discovery
+- `WindowEventHandler` — Bridges window manager signals (`map`, `size-change`, `minimize`, etc.) to placement/filter logic; tracks pending actions between `size-change` and `size-changed` signals
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Extension Not Loading
+### Extension not loading
 
 ```bash
-# Check extension status
+# Check status
 gnome-extensions info screentospace@dilzhan.dev
 
-# View GNOME Shell logs
-journalctl -f -o cat /usr/bin/gnome-shell
+# View logs
+journalctl -f -o cat /usr/bin/gnome-shell | grep -i screentospace
 
-# Reset extension settings
+# Reset settings
 dconf reset -f /org/gnome/shell/extensions/screentospace/
 ```
 
-### Schema Issues
-
-If you encounter schema-related errors:
+### Schema errors after update
 
 ```bash
-# Recompile schemas
-glib-compile-schemas src/schemas/
+# Recompile schemas in installed extension
+glib-compile-schemas ~/.local/share/gnome-shell/extensions/screentospace@dilzhan.dev/schemas/
 
-# Or use the deploy script which handles this automatically
-./scripts/deploy.sh
+# Restart GNOME Shell (X11: Alt+F2, r; Wayland: relog)
 ```
 
-### Common Issues
+### Windows not moving
 
-1. **Extension not visible in Extensions app**:
-   - Ensure GNOME Shell version is 49+: `gnome-shell --version`
-   - Check if extension is installed: `gnome-extensions list`
+1. Verify extension is enabled: `gnome-extensions list | grep screentospace`
+2. Check "Move window when maximized" is enabled in preferences
+3. If using whitelist mode, ensure target app is in the whitelist
+4. Confirm GNOME dynamic workspaces are enabled (Settings → Multitasking → Workspaces)
 
-2. **Windows not moving automatically**:
-   - Verify extension is enabled: `gnome-extensions info screentospace@dilzhan.dev`
-   - Check settings: `gnome-extensions prefs screentospace@dilzhan.dev`
-   - Ensure dynamic workspaces are enabled in GNOME settings
+### App not appearing in blacklist/whitelist
 
-3. **Multi-monitor issues**:
-   - Check "Workspaces on primary display only" setting in GNOME Tweaks
-   - Extension behavior adapts based on this system setting
+- The extension matches against desktop app IDs (e.g., `org.telegram.desktop`, `brave-browser`)
+- IDs are normalized (lowercased, `.desktop` stripped)
+- If an app doesn't have a desktop ID, it may not be filterable
+- Check app's actual ID: `Gio.DesktopAppInfo.new('app-name.desktop').get_id()` in Looking Glass (`Alt+F2`, `lg`)
 
 ---
 
-## 🔧 Development
+## Development
 
-### Prerequisites for Development
-
-```bash
-# Install development dependencies
-sudo apt-get install gettext glib-2.0-dev
-
-# For Fedora/RHEL
-sudo dnf install gettext glib2-devel
-```
-
-### Project Structure
+### Build from source
 
 ```bash
-ScreenToSpace/
-├── src/              # Source code
-├── po/               # Translations
-├── scripts/          # Build and deployment scripts
-├── build/            # Build output (generated)
-├── LICENSE           # GPL-2.0 license
-└── README.md         # This file
-```
+git clone https://github.com/DilZhaan/ScreenToSpace.git
+cd ScreenToSpace
 
-### Building from Source
+# Compile schemas
+glib-compile-schemas src/schemas
 
-```bash
-# Build extension package
+# Build zip
 ./scripts/makezip.sh
-
 # Output: build/screentospace@dilzhan.dev.zip
 ```
 
-### Testing Changes
+### Local testing
 
 ```bash
 # Deploy to local extensions directory
-./scripts/deploy.sh
+rsync -av --delete src/ ~/.local/share/gnome-shell/extensions/screentospace@dilzhan.dev/
+glib-compile-schemas ~/.local/share/gnome-shell/extensions/screentospace@dilzhan.dev/schemas/
 
 # Restart GNOME Shell (X11)
-Alt + F2, type 'r', press Enter
+# Alt+F2, r
 
-# Watch logs for debugging
-journalctl -f -o cat /usr/bin/gnome-shell | grep screentospace
+# Watch logs
+journalctl -f -o cat /usr/bin/gnome-shell
 ```
 
-### Code Style
+### Code style
 
-- ES6+ JavaScript
+- ES modules (`import`/`export`)
 - 4-space indentation
-- Descriptive variable and function names
-- JSDoc comments for public APIs
-- Follow GNOME JavaScript style guidelines
+- JSDoc for public methods
+- Descriptive variable names (`currentWorkspace`, not `ws`)
+- No abbreviations in identifiers except standard ones (`appId`, `wm`)
+
+### Structure notes
+
+- All window manager signals wired in `extension.js:_connectSignals()`
+- Settings keys defined in `constants.js` to avoid typos
+- App filtering entirely contained in `windowFilter.js:_isAppAllowed()`
+- Preferences UI uses Adw (libadwaita widgets); three-page layout with `Adw.PreferencesPage` instances
 
 ---
 
-## 📝 License
+## License
 
-This project is licensed under the **GNU General Public License v2.0 or later** - see the [LICENSE](LICENSE) file for details.
+GPL-2.0-or-later
 
 ```
 Copyright (C) 2025 DilZhaan
@@ -255,51 +285,35 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 ```
 
----
-
-## 👤 Author
-
-**DilZhaan**
-
-- GitHub: [@DilZhaan](https://github.com/DilZhaan)
-- Project: [ScreenToSpace](https://github.com/DilZhaan/ScreenToSpace)
+Full license text: [LICENSE](LICENSE)
 
 ---
 
-## 🙏 Acknowledgments
+## Author
 
-This extension was developed from scratch following modern software engineering principles and GNOME Shell extension best practices.
-
----
-
-## 📊 Project Status
-
-**Status**: Active Development  
-**Version**: 1  
-**GNOME Shell Compatibility**: 49+
+DilZhaan  
+GitHub: [@DilZhaan](https://github.com/DilZhaan)  
+Repository: [github.com/DilZhaan/ScreenToSpace](https://github.com/DilZhaan/ScreenToSpace)  
+Support: [buymeacoffee.com/dilzhan](https://buymeacoffee.com/dilzhan)
 
 ---
 
-## 🗺️ Roadmap
+## Changelog
 
-- [ ] Add more workspace placement strategies
-- [ ] Implement custom keyboard shortcuts
-- [ ] Add workspace naming and organization features
-- [ ] Create comprehensive test suite
-- [ ] Add more language translations
-- [ ] Integration with GNOME Activities overview
+**v8** (2025-12-24)
+- Added per-application blacklist/whitelist filtering
+- Multi-select app chooser with search functionality
+- Redesigned preferences UI (three-tab layout)
+- App ID normalization for reliable matching
+- Configurable filter mode (blacklist/whitelist toggle)
 
----
-
-## 💬 Support
-
-If you encounter any issues or have questions:
-
-1. Check the [Troubleshooting](#-troubleshooting) section
-2. Review [existing issues](https://github.com/DilZhaan/ScreenToSpace/issues)
-3. Create a [new issue](https://github.com/DilZhaan/ScreenToSpace/issues/new) with detailed information
+**v7** (Previous)
+- Initial public release
+- Core workspace isolation functionality
+- Multi-monitor support
+- Maximize/fullscreen window handling
 
 ---
 
-**Made with ❤️ by DilZhaan**
+**Note:** This extension is developed and tested on Fedora/RHEL-based systems running GNOME Shell 49. Community contributions and bug reports welcome.
 

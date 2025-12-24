@@ -11,6 +11,9 @@
 export const ExtensionConstants = {
     // Settings keys
     SETTING_MOVE_WHEN_MAXIMIZED: 'move-window-when-maximized',
+    SETTING_FILTER_MODE: 'filter-mode',
+    SETTING_BLACKLIST_APPS: 'blacklist-apps',
+    SETTING_WHITELIST_APPS: 'whitelist-apps',
     
     // Window placement markers
     MARKER_REORDER: 'reorder',
