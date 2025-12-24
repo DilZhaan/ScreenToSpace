@@ -16,5 +16,34 @@
         When disabled, only fullscreen windows will be moved.
       </description>
     </key>
+
+    <key name="filter-mode" type="s">
+      <default>'blacklist'</default>
+      <summary>App filtering mode</summary>
+      <description>
+        Controls whether the extension ignores apps in a blacklist or only manages apps in a whitelist.
+        Use 'blacklist' to skip listed apps. Use 'whitelist' to manage only listed apps.
+      </description>
+      <choices>
+        <choice value='blacklist'/>
+        <choice value='whitelist'/>
+      </choices>
+    </key>
+
+    <key name="blacklist-apps" type="as">
+      <default>[]</default>
+      <summary>Blacklisted applications</summary>
+      <description>
+        Desktop app IDs to ignore. When filter-mode is set to blacklist, windows from these apps will not be managed.
+      </description>
+    </key>
+
+    <key name="whitelist-apps" type="as">
+      <default>[]</default>
+      <summary>Whitelisted applications</summary>
+      <description>
+        Desktop app IDs to manage. When filter-mode is set to whitelist, only windows from these apps will be managed.
+      </description>
+    </key>
   </schema>
 </schemalist>

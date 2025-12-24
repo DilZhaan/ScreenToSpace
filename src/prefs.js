@@ -53,9 +53,191 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         const maximizedRow = this._createMaximizedToggleRow(window);
         group.add(maximizedRow);
         
+        const filterModeGroup = this._createFilterModeGroup(window);
+        const filterListGroup = this._createFilterListGroup(window);
+
+        // Keep UI in sync with settings changes
+        const refreshList = () => this._refreshAppList(window, filterListGroup);
+        window._settings.connect(`changed::${ExtensionConstants.SETTING_FILTER_MODE}`, refreshList);
+        window._settings.connect(`changed::${ExtensionConstants.SETTING_BLACKLIST_APPS}`, refreshList);
+        window._settings.connect(`changed::${ExtensionConstants.SETTING_WHITELIST_APPS}`, refreshList);
+
         page.add(group);
+        page.add(filterModeGroup);
+        page.add(filterListGroup);
         
         return page;
+    }
+
+    /**
+     * Creates the app filter mode group
+     * @private
+     */
+    _createFilterModeGroup(window) {
+        const group = new Adw.PreferencesGroup({
+            title: 'App Filtering',
+            description: 'Choose whether to ignore listed apps (blacklist) or manage only listed apps (whitelist).',
+        });
+
+        const labels = ['Blacklist (ignore listed apps)', 'Whitelist (manage only listed apps)'];
+        const values = ['blacklist', 'whitelist'];
+        const stringList = Gtk.StringList.new(labels);
+
+        const combo = new Adw.ComboRow({
+            title: 'Filter mode',
+            subtitle: 'Blacklist skips the listed apps. Whitelist limits management to the listed apps.',
+            model: stringList,
+            selected: Math.max(values.indexOf(window._settings.get_string(ExtensionConstants.SETTING_FILTER_MODE)), 0),
+        });
+
+        combo.connect('notify::selected', row => {
+            const idx = row.selected;
+            const nextValue = values[idx] || values[0];
+            window._settings.set_string(ExtensionConstants.SETTING_FILTER_MODE, nextValue);
+        });
+
+        // Update combo if settings change externally
+        window._settings.connect(`changed::${ExtensionConstants.SETTING_FILTER_MODE}`, () => {
+            combo.selected = Math.max(values.indexOf(window._settings.get_string(ExtensionConstants.SETTING_FILTER_MODE)), 0);
+        });
+
+        group.add(combo);
+        return group;
+    }
+
+    /**
+     * Creates the list group for blacklist/whitelist entries
+     * @private
+     */
+    _createFilterListGroup(window) {
+        const group = new Adw.PreferencesGroup();
+        this._refreshAppList(window, group);
+        return group;
+    }
+
+    /**
+     * Rebuilds the application list UI based on mode
+     * @private
+     */
+    _refreshAppList(window, group) {
+        group._rowsCache = group._rowsCache || [];
+        group._rowsCache.forEach(row => group.remove(row));
+        group._rowsCache = [];
+
+        const mode = window._settings.get_string(ExtensionConstants.SETTING_FILTER_MODE);
+        const listKey = mode === 'whitelist' ? ExtensionConstants.SETTING_WHITELIST_APPS : ExtensionConstants.SETTING_BLACKLIST_APPS;
+        const apps = window._settings.get_strv(listKey);
+
+        group.title = mode === 'whitelist' ? 'Whitelisted applications' : 'Blacklisted applications';
+        group.description = mode === 'whitelist'
+            ? 'Only windows from these apps are managed.'
+            : 'Windows from these apps are ignored.';
+
+        if (apps.length === 0) {
+            const emptyRow = new Adw.ActionRow({
+                title: 'No applications added',
+                subtitle: 'Use “Add application” to choose apps.',
+                sensitive: false,
+            });
+            group.add(emptyRow);
+            group._rowsCache.push(emptyRow);
+        } else {
+            apps.forEach(appId => {
+                const row = new Adw.ActionRow({
+                    title: this._getAppName(appId),
+                    subtitle: appId,
+                });
+
+                const removeButton = new Gtk.Button({
+                    icon_name: 'user-trash-symbolic',
+                    valign: Gtk.Align.CENTER,
+                    tooltip_text: 'Remove',
+                });
+                removeButton.add_css_class('flat');
+                removeButton.connect('clicked', () => this._removeAppFromList(window, listKey, appId));
+
+                row.add_suffix(removeButton);
+                row.activatable_widget = removeButton;
+                group.add(row);
+                group._rowsCache.push(row);
+            });
+        }
+
+        const addRow = new Adw.ActionRow({
+            title: 'Add application',
+            subtitle: mode === 'whitelist' ? 'Select apps to manage' : 'Select apps to ignore',
+        });
+
+        const addButton = new Gtk.Button({
+            label: 'Add',
+            icon_name: 'list-add-symbolic',
+            valign: Gtk.Align.CENTER,
+        });
+        addButton.add_css_class('suggested-action');
+        addButton.connect('clicked', () => this._openAppChooser(window, listKey));
+
+        addRow.add_suffix(addButton);
+        addRow.activatable_widget = addButton;
+        group.add(addRow);
+        group._rowsCache.push(addRow);
+    }
+
+    /**
+     * Opens the app chooser dialog and adds the selected app
+     * @private
+     */
+    _openAppChooser(window, listKey) {
+        const dialog = new Gtk.AppChooserDialog({
+            transient_for: window,
+            modal: true,
+            heading: 'Select an application',
+        });
+
+        dialog.connect('response', (dlg, response) => {
+            if (response === Gtk.ResponseType.OK) {
+                const appInfo = dlg.get_app_info();
+                if (appInfo) {
+                    this._addAppToList(window, listKey, appInfo.get_id());
+                }
+            }
+
+            dlg.destroy();
+        });
+
+        dialog.show();
+    }
+
+    /**
+     * Adds an app ID to the appropriate list
+     * @private
+     */
+    _addAppToList(window, listKey, appId) {
+        const list = window._settings.get_strv(listKey);
+        if (list.includes(appId)) {
+            return;
+        }
+
+        list.push(appId);
+        window._settings.set_strv(listKey, list);
+    }
+
+    /**
+     * Removes an app ID from the appropriate list
+     * @private
+     */
+    _removeAppFromList(window, listKey, appId) {
+        const list = window._settings.get_strv(listKey);
+        const next = list.filter(id => id !== appId);
+        window._settings.set_strv(listKey, next);
+    }
+
+    /**
+     * Attempts to resolve a friendly app name for display
+     * @private
+     */
+    _getAppName(appId) {
+        const appInfo = Gio.DesktopAppInfo.new(appId);
+        return appInfo ? appInfo.get_display_name() : appId;
     }
 
     /**

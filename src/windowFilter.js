@@ -30,12 +30,21 @@ export class WindowFilter {
     }
 
     /**
+     * Determines if this window should be managed based on type and app filters
+     * @param {Object} window - Meta window object
+     * @returns {boolean}
+     */
+    isManagedWindow(window) {
+        return this.isNormalWindow(window) && this._isAppAllowed(window);
+    }
+
+    /**
      * Checks if a window should be placed on a new workspace
      * @param {Object} window - Meta window object
      * @returns {boolean}
      */
     shouldPlaceOnNewWorkspace(window) {
-        if (!this.isNormalWindow(window)) {
+        if (!this.isManagedWindow(window)) {
             return false;
         }
 
@@ -53,7 +62,7 @@ export class WindowFilter {
      * @returns {boolean}
      */
     shouldPlaceOnSizeChange(window, change) {
-        if (!this.isNormalWindow(window)) {
+        if (!this.isManagedWindow(window)) {
             return false;
         }
 
@@ -73,7 +82,7 @@ export class WindowFilter {
      * @returns {boolean}
      */
     shouldReturnOnSizeChange(window, change, oldRect) {
-        if (!this.isNormalWindow(window)) {
+        if (!this.isManagedWindow(window)) {
             return false;
         }
 
@@ -96,6 +105,80 @@ export class WindowFilter {
      */
     _isMaximizeEnabled() {
         return this._settings.get_boolean(ExtensionConstants.SETTING_MOVE_WHEN_MAXIMIZED);
+    }
+
+    /**
+     * Checks if the window's app is allowed based on filter mode and lists
+     * @private
+     * @param {Object} window - Meta window object
+     * @returns {boolean}
+     */
+    _isAppAllowed(window) {
+        const mode = this._settings.get_string(ExtensionConstants.SETTING_FILTER_MODE);
+        const normalizeId = (id) => {
+            if (!id) {
+                return null;
+            }
+
+            const lower = id.toLowerCase();
+            return lower.endsWith('.desktop') ? lower.slice(0, -8) : lower;
+        };
+
+        const toNormalizedSet = (list) => {
+            const set = new Set();
+            list.forEach(id => {
+                const normalized = normalizeId(id);
+                if (normalized) {
+                    set.add(normalized);
+                }
+            });
+            return set;
+        };
+
+        const blacklist = toNormalizedSet(this._settings.get_strv(ExtensionConstants.SETTING_BLACKLIST_APPS));
+        const whitelist = toNormalizedSet(this._settings.get_strv(ExtensionConstants.SETTING_WHITELIST_APPS));
+
+        const appId = normalizeId(this._getWindowAppId(window));
+
+        if (mode === 'whitelist') {
+            if (whitelist.size === 0) {
+                return false;
+            }
+
+            return appId ? whitelist.has(appId) : false;
+        }
+
+        if (mode === 'blacklist') {
+            if (!appId) {
+                return true;
+            }
+
+            return !blacklist.has(appId);
+        }
+
+        return true;
+    }
+
+    /**
+     * Tries to resolve an application identifier for a window
+     * @private
+     * @param {Object} window - Meta window object
+     * @returns {string|null}
+     */
+    _getWindowAppId(window) {
+        const candidates = [
+            window.get_gtk_application_id?.(),
+            window.get_wm_class_instance?.(),
+            window.get_wm_class?.(),
+        ];
+
+        for (const id of candidates) {
+            if (id && typeof id === 'string' && id.trim().length > 0) {
+                return id.trim();
+            }
+        }
+
+        return null;
     }
 
     /**
