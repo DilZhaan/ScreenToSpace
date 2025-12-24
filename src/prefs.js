@@ -27,9 +27,11 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         window._settings = this.getSettings();
         
         const behaviorPage = this._createBehaviorPage(window);
+        const appListPage = this._createAppListPage(window);
         const aboutPage = this._createAboutPage();
         
         window.add(behaviorPage);
+        window.add(appListPage);
         window.add(aboutPage);
     }
 
@@ -41,44 +43,27 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
      */
     _createBehaviorPage(window) {
         const page = new Adw.PreferencesPage({
-            title: 'Window Behavior',
-            icon_name: 'preferences-system-symbolic',
+            title: 'Settings',
+            icon_name: 'emblem-system-symbolic',
         });
         
-        const group = new Adw.PreferencesGroup({
+        // Window Behavior group
+        const behaviorGroup = new Adw.PreferencesGroup({
             title: 'Window Behavior',
             description: 'Configure how windows are moved between workspaces',
         });
         
         const maximizedRow = this._createMaximizedToggleRow(window);
-        group.add(maximizedRow);
-        
-        const filterModeGroup = this._createFilterModeGroup(window);
-        const filterListGroup = this._createFilterListGroup(window);
+        behaviorGroup.add(maximizedRow);
+        page.add(behaviorGroup);
 
-        // Keep UI in sync with settings changes
-        const refreshList = () => this._refreshAppList(window, filterListGroup);
-        window._settings.connect(`changed::${ExtensionConstants.SETTING_FILTER_MODE}`, refreshList);
-        window._settings.connect(`changed::${ExtensionConstants.SETTING_BLACKLIST_APPS}`, refreshList);
-        window._settings.connect(`changed::${ExtensionConstants.SETTING_WHITELIST_APPS}`, refreshList);
-
-        page.add(group);
-        page.add(filterModeGroup);
-        page.add(filterListGroup);
-        
-        return page;
-    }
-
-    /**
-     * Creates the app filter mode group
-     * @private
-     */
-    _createFilterModeGroup(window) {
-        const group = new Adw.PreferencesGroup({
+        // App Filtering group (mode selector + link to app list page)
+        const filterGroup = new Adw.PreferencesGroup({
             title: 'App Filtering',
-            description: 'Choose whether to ignore listed apps (blacklist) or manage only listed apps (whitelist).',
+            description: 'Control which apps are affected by this extension',
         });
 
+        // Filter mode combo
         const labels = ['Blacklist (ignore listed apps)', 'Whitelist (manage only listed apps)'];
         const values = ['blacklist', 'whitelist'];
         const stringList = Gtk.StringList.new(labels);
@@ -96,23 +81,99 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
             window._settings.set_string(ExtensionConstants.SETTING_FILTER_MODE, nextValue);
         });
 
-        // Update combo if settings change externally
         window._settings.connect(`changed::${ExtensionConstants.SETTING_FILTER_MODE}`, () => {
             combo.selected = Math.max(values.indexOf(window._settings.get_string(ExtensionConstants.SETTING_FILTER_MODE)), 0);
+            this._updateManageAppsRow(window, manageAppsRow);
         });
 
-        group.add(combo);
-        return group;
+        filterGroup.add(combo);
+
+        // Link to manage app list
+        const manageAppsRow = new Adw.ActionRow({
+            title: 'Manage app list',
+            subtitle: this._getManageAppsSubtitle(window),
+            activatable: true,
+        });
+
+        const chevron = new Gtk.Image({
+            icon_name: 'go-next-symbolic',
+            valign: Gtk.Align.CENTER,
+        });
+        manageAppsRow.add_suffix(chevron);
+
+        manageAppsRow.connect('activated', () => {
+            window.present_subpage(window._appListPage);
+        });
+
+        filterGroup.add(manageAppsRow);
+        page.add(filterGroup);
+        
+        return page;
     }
 
     /**
-     * Creates the list group for blacklist/whitelist entries
+     * Creates the app list management page (subpage)
      * @private
      */
-    _createFilterListGroup(window) {
+    _createAppListPage(window) {
+        const page = new Adw.NavigationPage({
+            title: 'Manage Apps',
+        });
+
+        const toolbar = new Adw.ToolbarView();
+        const header = new Adw.HeaderBar();
+        toolbar.add_top_bar(header);
+
+        const content = new Adw.PreferencesPage();
         const group = new Adw.PreferencesGroup();
+
+        // Store reference for refresh
+        window._appListPage = page;
+        window._appListGroup = group;
+
         this._refreshAppList(window, group);
-        return group;
+
+        // Listen for changes to refresh list
+        window._settings.connect(`changed::${ExtensionConstants.SETTING_FILTER_MODE}`, () => {
+            this._refreshAppList(window, group);
+        });
+        window._settings.connect(`changed::${ExtensionConstants.SETTING_BLACKLIST_APPS}`, () => {
+            this._refreshAppList(window, group);
+        });
+        window._settings.connect(`changed::${ExtensionConstants.SETTING_WHITELIST_APPS}`, () => {
+            this._refreshAppList(window, group);
+        });
+
+        content.add(group);
+        toolbar.set_content(content);
+        page.set_child(toolbar);
+
+        return page;
+    }
+
+    /**
+     * Returns subtitle for manage apps row based on current list count
+     * @private
+     */
+    _getManageAppsSubtitle(window) {
+        const mode = window._settings.get_string(ExtensionConstants.SETTING_FILTER_MODE);
+        const listKey = mode === 'whitelist' 
+            ? ExtensionConstants.SETTING_WHITELIST_APPS 
+            : ExtensionConstants.SETTING_BLACKLIST_APPS;
+        const count = window._settings.get_strv(listKey).length;
+
+        if (count === 0) {
+            return 'No apps configured';
+        }
+        return `${count} app${count > 1 ? 's' : ''} in ${mode}`;
+    }
+
+    /**
+     * Updates the manage apps row subtitle
+     * @private
+     */
+    _updateManageAppsRow(window, row) {
+        row.subtitle = this._getManageAppsSubtitle(window);
     }
 
     /**
@@ -125,10 +186,12 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         group._rowsCache = [];
 
         const mode = window._settings.get_string(ExtensionConstants.SETTING_FILTER_MODE);
-        const listKey = mode === 'whitelist' ? ExtensionConstants.SETTING_WHITELIST_APPS : ExtensionConstants.SETTING_BLACKLIST_APPS;
+        const listKey = mode === 'whitelist' 
+            ? ExtensionConstants.SETTING_WHITELIST_APPS 
+            : ExtensionConstants.SETTING_BLACKLIST_APPS;
         const apps = window._settings.get_strv(listKey);
 
-        group.title = mode === 'whitelist' ? 'Whitelisted applications' : 'Blacklisted applications';
+        group.title = mode === 'whitelist' ? 'Whitelisted Apps' : 'Blacklisted Apps';
         group.description = mode === 'whitelist'
             ? 'Only windows from these apps are managed.'
             : 'Windows from these apps are ignored.';
@@ -136,44 +199,67 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         if (apps.length === 0) {
             const emptyRow = new Adw.ActionRow({
                 title: 'No applications added',
-                subtitle: 'Use “Add application” to choose apps.',
+                subtitle: 'Tap the button below to add apps.',
                 sensitive: false,
             });
+            emptyRow.add_prefix(new Gtk.Image({
+                icon_name: 'view-grid-symbolic',
+                valign: Gtk.Align.CENTER,
+            }));
             group.add(emptyRow);
             group._rowsCache.push(emptyRow);
         } else {
             apps.forEach(appId => {
+                const appInfo = Gio.DesktopAppInfo.new(appId);
                 const row = new Adw.ActionRow({
-                    title: this._getAppName(appId),
+                    title: appInfo ? appInfo.get_display_name() : appId,
                     subtitle: appId,
                 });
 
+                // App icon
+                if (appInfo) {
+                    const icon = appInfo.get_icon();
+                    if (icon) {
+                        row.add_prefix(new Gtk.Image({
+                            gicon: icon,
+                            pixel_size: 32,
+                            valign: Gtk.Align.CENTER,
+                        }));
+                    }
+                }
+
                 const removeButton = new Gtk.Button({
-                    icon_name: 'user-trash-symbolic',
+                    icon_name: 'edit-delete-symbolic',
                     valign: Gtk.Align.CENTER,
                     tooltip_text: 'Remove',
                 });
                 removeButton.add_css_class('flat');
+                removeButton.add_css_class('circular');
                 removeButton.connect('clicked', () => this._removeAppFromList(window, listKey, appId));
 
                 row.add_suffix(removeButton);
-                row.activatable_widget = removeButton;
                 group.add(row);
                 group._rowsCache.push(row);
             });
         }
 
+        // Add application button
         const addRow = new Adw.ActionRow({
             title: 'Add application',
             subtitle: mode === 'whitelist' ? 'Select apps to manage' : 'Select apps to ignore',
         });
-
-        const addButton = new Gtk.Button({
-            label: 'Add',
+        addRow.add_prefix(new Gtk.Image({
             icon_name: 'list-add-symbolic',
             valign: Gtk.Align.CENTER,
+        }));
+
+        const addButton = new Gtk.Button({
+            icon_name: 'plus-large-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: 'Add app',
         });
         addButton.add_css_class('suggested-action');
+        addButton.add_css_class('circular');
         addButton.connect('clicked', () => this._openAppChooser(window, listKey));
 
         addRow.add_suffix(addButton);
@@ -232,15 +318,6 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
     }
 
     /**
-     * Attempts to resolve a friendly app name for display
-     * @private
-     */
-    _getAppName(appId) {
-        const appInfo = Gio.DesktopAppInfo.new(appId);
-        return appInfo ? appInfo.get_display_name() : appId;
-    }
-
-    /**
      * Creates the about page
      * @private
      * @returns {Adw.PreferencesPage} The about page
@@ -248,7 +325,7 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
     _createAboutPage() {
         const page = new Adw.PreferencesPage({
             title: 'About',
-            icon_name: 'help-about-symbolic',
+            icon_name: 'info-symbolic',
         });
         
         const group = new Adw.PreferencesGroup();
@@ -257,24 +334,41 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
             title: 'ScreenToSpace',
             subtitle: 'Automatically move maximized and fullscreen windows to empty workspaces',
         });
+        aboutRow.add_prefix(new Gtk.Image({
+            icon_name: 'view-grid-symbolic',
+            pixel_size: 32,
+            valign: Gtk.Align.CENTER,
+        }));
         group.add(aboutRow);
         
         const authorRow = new Adw.ActionRow({
             title: 'Developed by',
             subtitle: 'DilZhaan',
         });
+        authorRow.add_prefix(new Gtk.Image({
+            icon_name: 'system-users-symbolic',
+            valign: Gtk.Align.CENTER,
+        }));
         group.add(authorRow);
         
         const versionRow = new Adw.ActionRow({
             title: 'Version',
             subtitle: this.metadata.version.toString(),
         });
+        versionRow.add_prefix(new Gtk.Image({
+            icon_name: 'emblem-default-symbolic',
+            valign: Gtk.Align.CENTER,
+        }));
         group.add(versionRow);
         
         const urlRow = new Adw.ActionRow({
             title: 'Repository',
             subtitle: ExtensionConstants.URL,
         });
+        urlRow.add_prefix(new Gtk.Image({
+            icon_name: 'web-browser-symbolic',
+            valign: Gtk.Align.CENTER,
+        }));
         group.add(urlRow);
         
         page.add(group);
@@ -293,6 +387,11 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
             title: 'Move window when maximized',
             subtitle: 'Automatically move maximized windows to empty workspaces',
         });
+
+        row.add_prefix(new Gtk.Image({
+            icon_name: 'view-fullscreen-symbolic',
+            valign: Gtk.Align.CENTER,
+        }));
 
         const toggle = new Gtk.Switch({
             active: window._settings.get_boolean(ExtensionConstants.SETTING_MOVE_WHEN_MAXIMIZED),
