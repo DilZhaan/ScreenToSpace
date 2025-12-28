@@ -45,8 +45,11 @@ export class WindowEventHandler {
         if (!this._windowFilter.isManagedWindow(window)) {
             return;
         }
-        
-        this._placementHandler.returnWindowToOldWorkspace(window);
+
+        // On destroy we only clean up state; we don't move/reorder anything.
+        if (typeof this._placementHandler.forgetWindow === 'function') {
+            this._placementHandler.forgetWindow(window);
+        }
     }
 
     /**

@@ -54,8 +54,8 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         });
 
         behaviorGroup.add(this._createTriggerModeRow(window));
-        behaviorGroup.add(this._createInsertAfterCurrentRow(window));
         behaviorGroup.add(this._createOverrideModifierRow(window));
+        behaviorGroup.add(this._createInsertAfterCurrentRow(window));
         page.add(behaviorGroup);
 
         // App Filtering group (mode selector only)

@@ -42,9 +42,9 @@ export class WindowPlacementHandler {
         }
         
         if (this._workspaceManager.isWorkspacesOnlyOnPrimary()) {
-            this._handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows);
+            this._handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows, currentWorkspace, currentIndex);
         } else {
-            this._handleMultiMonitorPlacement(window, manager, currentIndex, monitor, otherWindows);
+            this._handleMultiMonitorPlacement(window, manager, currentIndex, monitor, otherWindows, currentWorkspace, currentIndex);
         }
     }
 
@@ -60,38 +60,29 @@ export class WindowPlacementHandler {
             return;
         }
 
-        if (placedInfo.mode === 'insert') {
-            delete this._placedWindows[windowId];
-            this._returnWindowToOriginalWorkspace(window, placedInfo);
-            return;
-        }
-
         delete this._placedWindows[windowId];
-
-        const monitor = window.get_monitor();
-        const currentWorkspace = window.get_workspace();
-        const otherWindows = this._getOtherWindowsOnMonitor(currentWorkspace, window, monitor);
-        
-        if (otherWindows.length > 0) {
-            return;
-        }
-
-        const manager = window.get_display().get_workspace_manager();
-        const currentIndex = window.get_workspace().index();
-        
-        if (this._workspaceManager.isWorkspacesOnlyOnPrimary()) {
-            this._handlePrimaryMonitorReturn(window, manager, currentIndex, monitor);
-        } else {
-            this._handleMultiMonitorReturn(window, manager, currentIndex, monitor);
-        }
+        this._returnWindowToOriginalWorkspaceOrFallback(window, placedInfo);
     }
 
     /**
      * Marks a window as placed on a new workspace
      * @param {Object} window - Meta window object
      */
-    markWindowAsPlaced(window) {
-        this._placedWindows[window.get_id()] = { mode: 'reorder', marker: ExtensionConstants.MARKER_REORDER };
+    markWindowAsPlaced(window, originalWorkspace, originalWorkspaceIndex) {
+        this._placedWindows[window.get_id()] = {
+            mode: 'reorder',
+            marker: ExtensionConstants.MARKER_REORDER,
+            originalWorkspace,
+            originalWorkspaceIndex,
+        };
+    }
+
+    forgetWindow(window) {
+        if (!window) {
+            return;
+        }
+
+        delete this._placedWindows[window.get_id()];
     }
 
     _isInsertAfterCurrentEnabled() {
@@ -133,28 +124,51 @@ export class WindowPlacementHandler {
         };
     }
 
-    _returnWindowToOriginalWorkspace(window, placedInfo) {
+    _returnWindowToOriginalWorkspaceOrFallback(window, placedInfo) {
         const manager = window.get_display().get_workspace_manager();
-        let targetIndex = -1;
+        const targetIndex = this._findWorkspaceIndexByIdentity(manager, placedInfo.originalWorkspace);
 
-        const originalWorkspace = placedInfo.originalWorkspace;
-        if (originalWorkspace && typeof originalWorkspace.index === 'function') {
-            targetIndex = originalWorkspace.index();
-        }
-
-        if (targetIndex < 0 || targetIndex >= manager.get_n_workspaces()) {
-            const fallback = placedInfo.originalWorkspaceIndex;
-            if (typeof fallback === 'number' && fallback >= 0 && fallback < manager.get_n_workspaces()) {
-                targetIndex = fallback;
-            }
-        }
-
-        if (targetIndex < 0) {
+        if (targetIndex !== -1) {
+            window.change_workspace_by_index(targetIndex, false);
+            manager.get_workspace_by_index(targetIndex).activate(global.get_current_time());
             return;
         }
 
-        window.change_workspace_by_index(targetIndex, false);
-        manager.get_workspace_by_index(targetIndex).activate(global.get_current_time());
+        // Original workspace was likely removed (dynamic workspaces).
+        // Fall back to the existing restore heuristic without recreating anything.
+        this._returnWindowUsingCurrentRestoreLogic(window, manager);
+    }
+
+    _findWorkspaceIndexByIdentity(manager, workspace) {
+        if (!manager || !workspace) {
+            return -1;
+        }
+
+        const count = manager.get_n_workspaces();
+        for (let i = 0; i < count; i++) {
+            if (manager.get_workspace_by_index(i) === workspace) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    _returnWindowUsingCurrentRestoreLogic(window, manager) {
+        const monitor = window.get_monitor();
+        const currentWorkspace = window.get_workspace();
+        const otherWindows = this._getOtherWindowsOnMonitor(currentWorkspace, window, monitor);
+
+        if (otherWindows.length > 0) {
+            return;
+        }
+
+        const currentIndex = currentWorkspace.index();
+        if (this._workspaceManager.isWorkspacesOnlyOnPrimary()) {
+            this._handlePrimaryMonitorReturn(window, manager, currentIndex, monitor);
+        } else {
+            this._handleMultiMonitorReturn(window, manager, currentIndex, monitor);
+        }
     }
 
     /**
@@ -173,7 +187,7 @@ export class WindowPlacementHandler {
      * Handles placement when workspaces are only on primary monitor
      * @private
      */
-    _handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows) {
+    _handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows, originalWorkspace, originalWorkspaceIndex) {
         const primaryMonitor = window.get_display().get_primary_monitor();
         
         if (monitor !== primaryMonitor) {
@@ -187,14 +201,14 @@ export class WindowPlacementHandler {
         }
 
         this._reorderWorkspaces(manager, currentIndex, firstFree, otherWindows);
-        this.markWindowAsPlaced(window);
+        this.markWindowAsPlaced(window, originalWorkspace, originalWorkspaceIndex);
     }
 
     /**
      * Handles placement for multi-monitor setup
      * @private
      */
-    _handleMultiMonitorPlacement(window, manager, currentIndex, monitor, otherWindows) {
+    _handleMultiMonitorPlacement(window, manager, currentIndex, monitor, otherWindows, originalWorkspace, originalWorkspaceIndex) {
         const firstFree = this._workspaceManager.getFirstFreeWorkspace(manager, monitor);
         
         if (firstFree === -1) {
@@ -211,7 +225,7 @@ export class WindowPlacementHandler {
         // Restore windows to their original positions
         freeWorkspaceWindows.forEach(w => w.change_workspace_by_index(firstFree, false));
         
-        this.markWindowAsPlaced(window);
+        this.markWindowAsPlaced(window, originalWorkspace, originalWorkspaceIndex);
     }
 
     /**
