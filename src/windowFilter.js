@@ -48,11 +48,11 @@ export class WindowFilter {
             return false;
         }
 
-        if (this._isMaximizeEnabled()) {
-            return window.is_maximized();
-        }
-        
-        return window.fullscreen;
+        const triggerOnMaximize = this._getTriggerOnMaximizeEnabled();
+        const triggerOnFullscreen = this._getTriggerOnFullscreenEnabled();
+
+        return (triggerOnMaximize && window.is_maximized()) ||
+               (triggerOnFullscreen && window.fullscreen);
     }
 
     /**
@@ -66,10 +66,14 @@ export class WindowFilter {
             return false;
         }
 
-        const isMaximizing = this._isMaximizeEnabled() && 
-                            change === Meta.SizeChange.MAXIMIZE && 
+        const triggerOnMaximize = this._getTriggerOnMaximizeEnabled();
+        const triggerOnFullscreen = this._getTriggerOnFullscreenEnabled();
+
+        const isMaximizing = triggerOnMaximize &&
+                            change === Meta.SizeChange.MAXIMIZE &&
                             window.is_maximized();
-        const isFullscreening = change === Meta.SizeChange.FULLSCREEN;
+        const isFullscreening = triggerOnFullscreen &&
+                               change === Meta.SizeChange.FULLSCREEN;
 
         return isMaximizing || isFullscreening;
     }
@@ -87,24 +91,49 @@ export class WindowFilter {
         }
 
         const workArea = window.get_work_area_for_monitor(window.get_monitor());
+
+        const triggerOnMaximize = this._getTriggerOnMaximizeEnabled();
+        const triggerOnFullscreen = this._getTriggerOnFullscreenEnabled();
         
-        const isUnmaximizing = this._isMaximizeEnabled() && 
+        const isUnmaximizing = triggerOnMaximize && 
                               change === Meta.SizeChange.UNMAXIMIZE &&
                               workArea.equal(oldRect);
         
-        const isUnfullscreening = change === Meta.SizeChange.UNFULLSCREEN &&
-                                 (this._isMaximizeEnabled() ? window.is_maximized() : true);
+        const isUnfullscreening = triggerOnFullscreen &&
+                                 change === Meta.SizeChange.UNFULLSCREEN &&
+                                 (!triggerOnMaximize || !window.is_maximized());
 
         return isUnmaximizing || isUnfullscreening;
     }
 
     /**
-     * Checks if maximize feature is enabled in settings
+     * Returns whether maximize should trigger moving.
      * @private
      * @returns {boolean}
      */
-    _isMaximizeEnabled() {
+    _getTriggerOnMaximizeEnabled() {
+        const schema = this._settings?.settings_schema;
+        if (schema?.has_key?.(ExtensionConstants.SETTING_TRIGGER_ON_MAXIMIZE)) {
+            return this._settings.get_boolean(ExtensionConstants.SETTING_TRIGGER_ON_MAXIMIZE);
+        }
+
+        // Backward-compatible fallback
         return this._settings.get_boolean(ExtensionConstants.SETTING_MOVE_WHEN_MAXIMIZED);
+    }
+
+    /**
+     * Returns whether fullscreen should trigger moving.
+     * @private
+     * @returns {boolean}
+     */
+    _getTriggerOnFullscreenEnabled() {
+        const schema = this._settings?.settings_schema;
+        if (schema?.has_key?.(ExtensionConstants.SETTING_TRIGGER_ON_FULLSCREEN)) {
+            return this._settings.get_boolean(ExtensionConstants.SETTING_TRIGGER_ON_FULLSCREEN);
+        }
+
+        // Backward-compatible fallback: fullscreen always moved
+        return true;
     }
 
     /**

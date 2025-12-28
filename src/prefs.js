@@ -52,9 +52,10 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
             title: 'Window Behavior',
             description: 'Configure how windows are moved between workspaces',
         });
-        
-        const maximizedRow = this._createMaximizedToggleRow(window);
-        behaviorGroup.add(maximizedRow);
+
+        behaviorGroup.add(this._createTriggerModeRow(window));
+        behaviorGroup.add(this._createOverrideModifierRow(window));
+        behaviorGroup.add(this._createInsertAfterCurrentRow(window));
         page.add(behaviorGroup);
 
         // App Filtering group (mode selector only)
@@ -527,10 +528,20 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
      * @param {Adw.PreferencesWindow} window - The preferences window
      * @returns {Adw.ActionRow} The toggle row
      */
-    _createMaximizedToggleRow(window) {
-        const row = new Adw.ActionRow({
-            title: 'Move window when maximized',
-            subtitle: 'Automatically move maximized windows to empty workspaces',
+    _createTriggerModeRow(window) {
+        const labels = ['Maximize', 'Full Screen', 'Both'];
+        const values = ['maximize', 'fullscreen', 'both'];
+        const stringList = Gtk.StringList.new(labels);
+
+        const schema = window._settings.settings_schema;
+        const hasKeys = schema?.has_key?.(ExtensionConstants.SETTING_TRIGGER_ON_MAXIMIZE) &&
+            schema?.has_key?.(ExtensionConstants.SETTING_TRIGGER_ON_FULLSCREEN);
+
+        const row = new Adw.ComboRow({
+            title: 'Behavior',
+            subtitle: 'Choose which window state triggers a workspace move',
+            model: stringList,
+            selected: 2,
         });
 
         row.add_prefix(new Gtk.Image({
@@ -538,17 +549,136 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
             valign: Gtk.Align.CENTER,
         }));
 
+        if (!hasKeys) {
+            row.sensitive = false;
+            row.subtitle = 'Choose which window state triggers a workspace move (update required)';
+            return row;
+        }
+
+        const getModeFromSettings = () => {
+            const onMax = window._settings.get_boolean(ExtensionConstants.SETTING_TRIGGER_ON_MAXIMIZE);
+            const onFull = window._settings.get_boolean(ExtensionConstants.SETTING_TRIGGER_ON_FULLSCREEN);
+
+            if (onMax && onFull) {
+                return 'both';
+            }
+
+            if (onMax && !onFull) {
+                return 'maximize';
+            }
+
+            if (!onMax && onFull) {
+                return 'fullscreen';
+            }
+
+            // Not exposed by UI; keep it simple.
+            return 'both';
+        };
+
+        let isUpdating = false;
+
+        const syncRowFromSettings = () => {
+            if (isUpdating) {
+                return;
+            }
+
+            const mode = getModeFromSettings();
+            const nextSelected = Math.max(values.indexOf(mode), 2);
+            if (row.selected !== nextSelected) {
+                isUpdating = true;
+                row.selected = nextSelected;
+                isUpdating = false;
+            }
+        };
+
+        syncRowFromSettings();
+
+        row.connect('notify::selected', combo => {
+            if (isUpdating) {
+                return;
+            }
+
+            const idx = combo.selected;
+            const mode = values[idx] || 'both';
+
+            isUpdating = true;
+            window._settings.set_boolean(ExtensionConstants.SETTING_TRIGGER_ON_MAXIMIZE, mode === 'maximize' || mode === 'both');
+            window._settings.set_boolean(ExtensionConstants.SETTING_TRIGGER_ON_FULLSCREEN, mode === 'fullscreen' || mode === 'both');
+            isUpdating = false;
+        });
+
+        window._settings.connect(`changed::${ExtensionConstants.SETTING_TRIGGER_ON_MAXIMIZE}`, syncRowFromSettings);
+        window._settings.connect(`changed::${ExtensionConstants.SETTING_TRIGGER_ON_FULLSCREEN}`, syncRowFromSettings);
+
+        return row;
+    }
+
+    _createOverrideModifierRow(window) {
+        const labels = ['None', 'Alt', 'Super', 'Ctrl', 'Shift'];
+        const values = ['none', 'alt', 'super', 'ctrl', 'shift'];
+        const stringList = Gtk.StringList.new(labels);
+
+        const schema = window._settings.settings_schema;
+        const hasKey = schema?.has_key?.(ExtensionConstants.SETTING_OVERRIDE_MODIFIER);
+        const current = hasKey
+            ? window._settings.get_string(ExtensionConstants.SETTING_OVERRIDE_MODIFIER)
+            : 'none';
+
+        const row = new Adw.ComboRow({
+            title: 'Override modifier',
+            subtitle: 'Hold while maximizing or fullscreening to use GNOME\'s default behavior',
+            model: stringList,
+            selected: Math.max(values.indexOf(current), 0),
+        });
+
+        if (hasKey) {
+            row.connect('notify::selected', combo => {
+                const idx = combo.selected;
+                const nextValue = values[idx] || values[0];
+                window._settings.set_string(ExtensionConstants.SETTING_OVERRIDE_MODIFIER, nextValue);
+            });
+
+            window._settings.connect(`changed::${ExtensionConstants.SETTING_OVERRIDE_MODIFIER}`, () => {
+                row.selected = Math.max(values.indexOf(window._settings.get_string(ExtensionConstants.SETTING_OVERRIDE_MODIFIER)), 0);
+            });
+        } else {
+            row.sensitive = false;
+            row.subtitle = 'Hold while maximizing or fullscreening to use GNOME\'s default behavior (update required)';
+        }
+
+        return row;
+    }
+
+    _createInsertAfterCurrentRow(window) {
+        const row = new Adw.ActionRow({
+            title: 'Insert workspace after current',
+            subtitle: 'Place the new workspace right after the current one and restore windows back to their original workspace',
+        });
+
+        row.add_prefix(new Gtk.Image({
+            icon_name: 'go-next-symbolic',
+            valign: Gtk.Align.CENTER,
+        }));
+
+        const schema = window._settings.settings_schema;
+        const hasKey = schema?.has_key?.(ExtensionConstants.SETTING_INSERT_AFTER_CURRENT);
+
         const toggle = new Gtk.Switch({
-            active: window._settings.get_boolean(ExtensionConstants.SETTING_MOVE_WHEN_MAXIMIZED),
+            active: hasKey ? window._settings.get_boolean(ExtensionConstants.SETTING_INSERT_AFTER_CURRENT) : false,
             valign: Gtk.Align.CENTER,
         });
 
-        window._settings.bind(
-            ExtensionConstants.SETTING_MOVE_WHEN_MAXIMIZED,
-            toggle,
-            'active',
-            Gio.SettingsBindFlags.DEFAULT
-        );
+        if (hasKey) {
+            window._settings.bind(
+                ExtensionConstants.SETTING_INSERT_AFTER_CURRENT,
+                toggle,
+                'active',
+                Gio.SettingsBindFlags.DEFAULT
+            );
+        } else {
+            toggle.sensitive = false;
+            row.subtitle = 'Place the new workspace right after the current one and restore windows back to their original workspace (update required)';
+        }
 
         row.add_suffix(toggle);
         row.activatable_widget = toggle;

@@ -53,11 +53,36 @@ export default class ScreenToSpaceExtension extends Extension {
      */
     _initializeComponents() {
         this._settings = this.getSettings();
+        this._migrateTriggerSettings(this._settings);
         this._workspaceManager = new WorkspaceManager();
-        this._placementHandler = new WindowPlacementHandler(this._workspaceManager);
+        this._placementHandler = new WindowPlacementHandler(this._workspaceManager, this._settings);
         this._windowFilter = new WindowFilter(this._settings);
-        this._eventHandler = new WindowEventHandler(this._windowFilter, this._placementHandler);
+        this._eventHandler = new WindowEventHandler(this._windowFilter, this._placementHandler, this._settings);
         this._signalHandles = [];
+    }
+
+    _migrateTriggerSettings(settings) {
+        const schema = settings?.settings_schema;
+        if (!schema?.has_key?.(ExtensionConstants.SETTING_TRIGGERS_MIGRATED) ||
+            !schema?.has_key?.(ExtensionConstants.SETTING_TRIGGER_ON_MAXIMIZE) ||
+            !schema?.has_key?.(ExtensionConstants.SETTING_TRIGGER_ON_FULLSCREEN)) {
+            return;
+        }
+
+        if (settings.get_boolean(ExtensionConstants.SETTING_TRIGGERS_MIGRATED)) {
+            return;
+        }
+
+        // Legacy behavior:
+        // - move-window-when-maximized = true  => maximize + fullscreen
+        // - move-window-when-maximized = false => fullscreen only
+        const legacyMaximize = schema.has_key(ExtensionConstants.SETTING_MOVE_WHEN_MAXIMIZED)
+            ? settings.get_boolean(ExtensionConstants.SETTING_MOVE_WHEN_MAXIMIZED)
+            : true;
+
+        settings.set_boolean(ExtensionConstants.SETTING_TRIGGER_ON_MAXIMIZE, legacyMaximize);
+        settings.set_boolean(ExtensionConstants.SETTING_TRIGGER_ON_FULLSCREEN, true);
+        settings.set_boolean(ExtensionConstants.SETTING_TRIGGERS_MIGRATED, true);
     }
 
     /**
