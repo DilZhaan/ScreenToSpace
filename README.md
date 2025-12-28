@@ -11,7 +11,11 @@ A GNOME Shell extension that automatically moves maximized and fullscreen window
 
 ### Core Functionality
 - **Automatic workspace isolation** — Maximized and fullscreen windows move to empty workspaces, one window per space
+- **Configurable trigger behavior** — Choose whether maximize, fullscreen, or both trigger workspace isolation via dropdown selector
+- **Override modifier key** — Hold Alt/Super/Ctrl/Shift while maximizing/fullscreening to bypass ScreenToSpace and use GNOME's default behavior
+- **Flexible workspace placement** — Insert new workspace after current (with restore to original) or use the last empty workspace
 - **Smart workspace reordering** — Minimized disruption to existing window layout when creating or destroying isolated workspaces
+- **Focus preservation** — Moved/restored windows automatically gain focus and raise to prevent being hidden behind other windows
 - **Multi-monitor aware** — Respects GNOME's "workspaces on primary display only" setting; handles per-monitor workspace assignment correctly
 
 ### Application Filtering
@@ -98,7 +102,12 @@ gnome-extensions prefs screentospace@dilzhan.dev
 ### Settings Tab
 
 **Window Behavior**
-- *Move window when maximized* — Enable or disable automatic workspace isolation for maximized windows (fullscreen always triggers isolation regardless of this setting)
+- *Behavior* — Dropdown to choose trigger mode:
+  - **Maximized** — Only maximized windows trigger workspace isolation
+  - **Full Screen** — Only fullscreen windows trigger workspace isolation
+  - **Both** (default) — Both maximized and fullscreen windows trigger workspace isolation
+- *Override modifier* — Choose a modifier key (None/Alt/Super/Ctrl/Shift) that, when held during maximize/fullscreen, bypasses ScreenToSpace and uses GNOME's default behavior
+- *Insert workspace after current* — When enabled, places the new workspace immediately after the current one (instead of at the end) and restores windows back to their exact original workspace. When disabled, uses the last empty workspace with smart reordering
 
 **App Filtering**
 - *Filter mode* — Choose **Blacklist** (ignore listed apps) or **Whitelist** (manage only listed apps)
@@ -128,16 +137,22 @@ Extension metadata: name, author, version, repository link
 
 **Placement (window enters maximized/fullscreen state):**
 1. Extension detects size-change signal from window manager
-2. `WindowFilter` checks if window qualifies: normal window type, matches app filter rules, entering maximize/fullscreen state
-3. `WorkspaceManager` scans for first empty workspace on the same monitor
-4. `WindowPlacementHandler` reorders workspaces (swaps empty workspace to current position, moves current to empty's former position)
-5. Other windows on the original workspace stay put; newly isolated window moves to the former-empty workspace
+2. Check if override modifier is pressed; if so, bypass ScreenToSpace (GNOME default behavior)
+3. `WindowFilter` checks if window qualifies: normal window type, matches app filter rules, matches configured trigger behavior (maximize/fullscreen/both)
+4. `WorkspaceManager` scans for empty workspace on the same monitor
+5. `WindowPlacementHandler` places window using configured mode:
+   - **Insert after current mode**: Takes the last completely empty workspace, reorders it to position after current workspace, moves only the isolated window there, stores reference to original workspace
+   - **Reorder mode** (default): Swaps empty workspace with current workspace, other windows stay in place, stores reference to home workspace
+6. Window is explicitly focused and raised to ensure visibility
 
 **Return (window exits maximized/fullscreen state):**
 1. Extension detects size-change signal indicating unmaximize/unfullscreen
-2. If the now-normal window is alone on its workspace, find the last occupied workspace (scan backwards from current index, then forwards)
-3. Reorder: swap current workspace back to the occupied workspace's position
-4. Window effectively "returns" to a workspace with other windows
+2. Retrieve stored workspace reference (original/home workspace)
+3. `WindowPlacementHandler` restores window using identity-based lookup:
+   - If the stored workspace still exists (verified by object identity), move window back to it
+   - If the workspace was removed (dynamic workspaces), fall back to existing restore heuristic (last occupied / nearest workspace)
+4. Window is explicitly focused and raised to prevent being hidden behind other windows
+5. Workspace is activated so user follows the restored window
 
 ### App filtering details
 
@@ -173,10 +188,10 @@ src/
 ```
 
 **Key modules:**
-- `WindowFilter` — `isManagedWindow(window)` combines type check + app filter logic; app ID normalization and blacklist/whitelist evaluation happen here
-- `WindowPlacementHandler` — `placeWindowOnWorkspace(window)`, `returnWindowToOldWorkspace(window)` encapsulate the workspace swap operations
-- `WorkspaceManager` — `getFirstFreeWorkspace(manager, monitor)`, `getLastOccupiedWorkspace(manager, currentIndex, monitor)` abstract workspace discovery
-- `WindowEventHandler` — Bridges window manager signals (`map`, `size-change`, `minimize`, etc.) to placement/filter logic; tracks pending actions between `size-change` and `size-changed` signals
+- `WindowFilter` — `isManagedWindow(window)` combines type check + app filter logic; `shouldPlaceOnSizeChange(window, change)` checks maximize/fullscreen triggers independently; app ID normalization and blacklist/whitelist evaluation happen here
+- `WindowPlacementHandler` — `placeWindowOnWorkspace(window)`, `returnWindowToOldWorkspace(window)` encapsulate workspace operations; supports both reorder mode and insert-after-current mode; stores workspace references for identity-based restore; handles focus/raise after moves
+- `WorkspaceManager` — `getFirstFreeWorkspace(manager, monitor)`, `getLastOccupiedWorkspace(manager, currentIndex, monitor)`, `getLastCompletelyEmptyWorkspace(manager)` abstract workspace discovery
+- `WindowEventHandler` — Bridges window manager signals (`map`, `size-change`, `minimize`, etc.) to placement/filter logic; checks override modifier state; tracks pending actions between `size-change` and `size-changed` signals
 
 ---
 
@@ -207,9 +222,10 @@ glib-compile-schemas ~/.local/share/gnome-shell/extensions/screentospace@dilzhan
 ### Windows not moving
 
 1. Verify extension is enabled: `gnome-extensions list | grep screentospace`
-2. Check "Move window when maximized" is enabled in preferences
-3. If using whitelist mode, ensure target app is in the whitelist
-4. Confirm GNOME dynamic workspaces are enabled (Settings → Multitasking → Workspaces)
+2. Check "Behavior" dropdown is set correctly (not disabled for the window state you're testing)
+3. Ensure you're not holding the override modifier key while maximizing/fullscreening
+4. If using whitelist mode, ensure target app is in the whitelist
+5. Confirm GNOME dynamic workspaces are enabled (Settings → Multitasking → Workspaces)
 
 ### App not appearing in blacklist/whitelist
 
@@ -299,6 +315,15 @@ Support: [buymeacoffee.com/dilzhan](https://buymeacoffee.com/dilzhan)
 ---
 
 ## Changelog
+
+**v9** (2025-12-28)
+- **Behavior dropdown**: Configure maximize/fullscreen triggers independently (Maximized, Full Screen, or Both)
+- **Override modifier**: Hold Alt/Super/Ctrl/Shift while maximizing/fullscreening to bypass ScreenToSpace
+- **Insert workspace after current**: Optional mode to place new workspace right after current (with restore to exact original workspace)
+- **Unified restore behavior**: Always returns to original workspace if it exists, with fallback to last occupied/nearest
+- **Focus preservation**: Moved/restored windows are explicitly focused and raised to prevent being hidden
+- **Identity-based workspace tracking**: Robust handling of dynamic workspace removal
+- **One-time settings migration**: Automatic upgrade from legacy single toggle to new separate triggers
 
 **v8** (2025-12-24)
 - Added per-application blacklist/whitelist filtering
