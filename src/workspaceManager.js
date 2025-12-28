@@ -41,6 +41,28 @@ export class WorkspaceManager {
         
         return -1;
     }
+
+    /**
+     * Finds the last workspace with no windows at all (across all monitors).
+     * Useful for dynamic workspaces where an empty workspace exists at the end.
+     * @param {Object} manager - Workspace manager instance
+     * @returns {number} Workspace index or -1 if none found
+     */
+    getLastCompletelyEmptyWorkspace(manager) {
+        const workspaceCount = manager.get_n_workspaces();
+
+        for (let i = workspaceCount - 1; i >= 0; i--) {
+            const workspace = manager.get_workspace_by_index(i);
+            const hasWindows = workspace.list_windows()
+                .some(w => !w.is_always_on_all_workspaces());
+
+            if (!hasWindows) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
     
     /**
      * Finds the last occupied workspace on the specified monitor

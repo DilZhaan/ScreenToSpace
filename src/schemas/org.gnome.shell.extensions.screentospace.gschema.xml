@@ -17,6 +17,54 @@
       </description>
     </key>
 
+    <key name="trigger-on-maximize" type="b">
+      <default>true</default>
+      <summary>Move window on maximize</summary>
+      <description>
+        When enabled, maximizing a window triggers ScreenToSpace workspace isolation.
+      </description>
+    </key>
+
+    <key name="trigger-on-fullscreen" type="b">
+      <default>true</default>
+      <summary>Move window on fullscreen</summary>
+      <description>
+        When enabled, entering fullscreen triggers ScreenToSpace workspace isolation.
+      </description>
+    </key>
+
+    <key name="override-modifier" type="s">
+      <default>'none'</default>
+      <summary>Override modifier</summary>
+      <description>
+        Hold this modifier while maximizing or fullscreening to bypass ScreenToSpace and use GNOME's default behavior.
+      </description>
+      <choices>
+        <choice value='none'/>
+        <choice value='alt'/>
+        <choice value='super'/>
+        <choice value='ctrl'/>
+        <choice value='shift'/>
+      </choices>
+    </key>
+
+    <key name="triggers-migrated" type="b">
+      <default>false</default>
+      <summary>Internal: triggers migrated</summary>
+      <description>
+        Internal flag used to migrate legacy maximize/fullscreen behavior to the new trigger toggles.
+      </description>
+    </key>
+
+    <key name="insert-workspace-after-current" type="b">
+      <default>false</default>
+      <summary>Insert workspace after current</summary>
+      <description>
+        When enabled, ScreenToSpace inserts the target empty workspace immediately after the current workspace instead of using the last workspace.
+        When the window is restored, it returns to its original workspace.
+      </description>
+    </key>
+
     <key name="filter-mode" type="s">
       <default>'blacklist'</default>
       <summary>App filtering mode</summary>

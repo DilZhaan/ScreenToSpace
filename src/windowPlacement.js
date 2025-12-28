@@ -14,8 +14,9 @@ import { ExtensionConstants } from './constants.js';
  * Handles placing windows on appropriate workspaces
  */
 export class WindowPlacementHandler {
-    constructor(workspaceManager) {
+    constructor(workspaceManager, settings) {
         this._workspaceManager = workspaceManager;
+        this._settings = settings;
         this._placedWindows = {};
     }
 
@@ -33,7 +34,12 @@ export class WindowPlacementHandler {
         }
 
         const manager = window.get_display().get_workspace_manager();
-        const currentIndex = manager.get_active_workspace_index();
+        const currentIndex = currentWorkspace.index();
+
+        if (this._isInsertAfterCurrentEnabled()) {
+            this._placeWindowByInsertingAfterCurrent(window, manager, currentWorkspace, currentIndex);
+            return;
+        }
         
         if (this._workspaceManager.isWorkspacesOnlyOnPrimary()) {
             this._handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows);
@@ -48,11 +54,18 @@ export class WindowPlacementHandler {
      */
     returnWindowToOldWorkspace(window) {
         const windowId = window.get_id();
-        
-        if (!this._placedWindows[windowId]) {
+
+        const placedInfo = this._placedWindows[windowId];
+        if (!placedInfo) {
             return;
         }
-        
+
+        if (placedInfo.mode === 'insert') {
+            delete this._placedWindows[windowId];
+            this._returnWindowToOriginalWorkspace(window, placedInfo);
+            return;
+        }
+
         delete this._placedWindows[windowId];
 
         const monitor = window.get_monitor();
@@ -64,7 +77,7 @@ export class WindowPlacementHandler {
         }
 
         const manager = window.get_display().get_workspace_manager();
-        const currentIndex = manager.get_active_workspace_index();
+        const currentIndex = window.get_workspace().index();
         
         if (this._workspaceManager.isWorkspacesOnlyOnPrimary()) {
             this._handlePrimaryMonitorReturn(window, manager, currentIndex, monitor);
@@ -78,7 +91,70 @@ export class WindowPlacementHandler {
      * @param {Object} window - Meta window object
      */
     markWindowAsPlaced(window) {
-        this._placedWindows[window.get_id()] = ExtensionConstants.MARKER_REORDER;
+        this._placedWindows[window.get_id()] = { mode: 'reorder', marker: ExtensionConstants.MARKER_REORDER };
+    }
+
+    _isInsertAfterCurrentEnabled() {
+        const settings = this._settings;
+        const schema = settings?.settings_schema;
+        if (!schema?.has_key?.(ExtensionConstants.SETTING_INSERT_AFTER_CURRENT)) {
+            return false;
+        }
+
+        return settings.get_boolean(ExtensionConstants.SETTING_INSERT_AFTER_CURRENT);
+    }
+
+    _placeWindowByInsertingAfterCurrent(window, manager, originalWorkspace, originalIndex) {
+        const workspaceCount = manager.get_n_workspaces();
+        if (originalIndex >= workspaceCount - 1) {
+            return;
+        }
+
+        const emptyIndex = this._workspaceManager.getLastCompletelyEmptyWorkspace(manager);
+        if (emptyIndex === -1) {
+            return;
+        }
+
+        const targetIndex = originalIndex + 1;
+
+        const emptyWorkspace = manager.get_workspace_by_index(emptyIndex);
+        if (emptyIndex !== targetIndex) {
+            manager.reorder_workspace(emptyWorkspace, targetIndex);
+        }
+
+        const finalTargetIndex = emptyWorkspace.index();
+        window.change_workspace_by_index(finalTargetIndex, false);
+        manager.get_workspace_by_index(finalTargetIndex).activate(global.get_current_time());
+
+        this._placedWindows[window.get_id()] = {
+            mode: 'insert',
+            originalWorkspace,
+            originalWorkspaceIndex: originalIndex,
+        };
+    }
+
+    _returnWindowToOriginalWorkspace(window, placedInfo) {
+        const manager = window.get_display().get_workspace_manager();
+        let targetIndex = -1;
+
+        const originalWorkspace = placedInfo.originalWorkspace;
+        if (originalWorkspace && typeof originalWorkspace.index === 'function') {
+            targetIndex = originalWorkspace.index();
+        }
+
+        if (targetIndex < 0 || targetIndex >= manager.get_n_workspaces()) {
+            const fallback = placedInfo.originalWorkspaceIndex;
+            if (typeof fallback === 'number' && fallback >= 0 && fallback < manager.get_n_workspaces()) {
+                targetIndex = fallback;
+            }
+        }
+
+        if (targetIndex < 0) {
+            return;
+        }
+
+        window.change_workspace_by_index(targetIndex, false);
+        manager.get_workspace_by_index(targetIndex).activate(global.get_current_time());
     }
 
     /**
@@ -212,5 +288,6 @@ export class WindowPlacementHandler {
     destroy() {
         this._placedWindows = {};
         this._workspaceManager = null;
+        this._settings = null;
     }
 }
