@@ -9,6 +9,7 @@
  */
 
 import { ExtensionConstants } from './constants.js';
+import GLib from 'gi://GLib';
 
 /**
  * Handles placing windows on appropriate workspaces
@@ -115,6 +116,7 @@ export class WindowPlacementHandler {
         const finalTargetIndex = emptyWorkspace.index();
         window.change_workspace_by_index(finalTargetIndex, false);
         manager.get_workspace_by_index(finalTargetIndex).activate(global.get_current_time());
+        this._focusMovedWindow(window);
 
         this._placedWindows[window.get_id()] = {
             mode: 'insert',
@@ -129,12 +131,38 @@ export class WindowPlacementHandler {
         if (targetIndex !== -1) {
             window.change_workspace_by_index(targetIndex, false);
             manager.get_workspace_by_index(targetIndex).activate(global.get_current_time());
+            this._focusMovedWindow(window);
             return;
         }
 
         // Original workspace was likely removed (dynamic workspaces).
         // Fall back to the existing restore heuristic without recreating anything.
         this._returnWindowUsingCurrentRestoreLogic(window, manager);
+        this._focusMovedWindow(window);
+    }
+
+    _focusMovedWindow(window) {
+        if (!window) {
+            return;
+        }
+
+        // Focusing immediately after workspace changes can be racy.
+        // Using an idle callback makes this much more reliable.
+        GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            const time = typeof global.get_current_time === 'function'
+                ? global.get_current_time()
+                : 0;
+
+            if (typeof window.activate === 'function') {
+                window.activate(time);
+            }
+
+            if (typeof window.raise === 'function') {
+                window.raise();
+            }
+
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _findWorkspaceIndexByIdentity(manager, workspace) {
