@@ -42,9 +42,9 @@ export class WindowPlacementHandler {
         }
         
         if (this._workspaceManager.isWorkspacesOnlyOnPrimary()) {
-            this._handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows, currentWorkspace, currentIndex);
+            this._handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows);
         } else {
-            this._handleMultiMonitorPlacement(window, manager, currentIndex, monitor, otherWindows, currentWorkspace, currentIndex);
+            this._handleMultiMonitorPlacement(window, manager, currentIndex, monitor, otherWindows);
         }
     }
 
@@ -61,19 +61,18 @@ export class WindowPlacementHandler {
         }
 
         delete this._placedWindows[windowId];
-        this._returnWindowToOriginalWorkspaceOrFallback(window, placedInfo);
+        this._returnWindowToHomeWorkspaceOrFallback(window, placedInfo);
     }
 
     /**
      * Marks a window as placed on a new workspace
      * @param {Object} window - Meta window object
      */
-    markWindowAsPlaced(window, originalWorkspace, originalWorkspaceIndex) {
+    markWindowAsPlaced(window, homeWorkspace) {
         this._placedWindows[window.get_id()] = {
             mode: 'reorder',
             marker: ExtensionConstants.MARKER_REORDER,
-            originalWorkspace,
-            originalWorkspaceIndex,
+            homeWorkspace,
         };
     }
 
@@ -119,14 +118,13 @@ export class WindowPlacementHandler {
 
         this._placedWindows[window.get_id()] = {
             mode: 'insert',
-            originalWorkspace,
-            originalWorkspaceIndex: originalIndex,
+            homeWorkspace: originalWorkspace,
         };
     }
 
-    _returnWindowToOriginalWorkspaceOrFallback(window, placedInfo) {
+    _returnWindowToHomeWorkspaceOrFallback(window, placedInfo) {
         const manager = window.get_display().get_workspace_manager();
-        const targetIndex = this._findWorkspaceIndexByIdentity(manager, placedInfo.originalWorkspace);
+        const targetIndex = this._findWorkspaceIndexByIdentity(manager, placedInfo.homeWorkspace);
 
         if (targetIndex !== -1) {
             window.change_workspace_by_index(targetIndex, false);
@@ -187,7 +185,7 @@ export class WindowPlacementHandler {
      * Handles placement when workspaces are only on primary monitor
      * @private
      */
-    _handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows, originalWorkspace, originalWorkspaceIndex) {
+    _handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows) {
         const primaryMonitor = window.get_display().get_primary_monitor();
         
         if (monitor !== primaryMonitor) {
@@ -201,14 +199,18 @@ export class WindowPlacementHandler {
         }
 
         this._reorderWorkspaces(manager, currentIndex, firstFree, otherWindows);
-        this.markWindowAsPlaced(window, originalWorkspace, originalWorkspaceIndex);
+
+        // After reordering, the workspace at the original index is the "home" workspace
+        // from the user's perspective (where other windows stayed).
+        const homeWorkspace = manager.get_workspace_by_index(currentIndex);
+        this.markWindowAsPlaced(window, homeWorkspace);
     }
 
     /**
      * Handles placement for multi-monitor setup
      * @private
      */
-    _handleMultiMonitorPlacement(window, manager, currentIndex, monitor, otherWindows, originalWorkspace, originalWorkspaceIndex) {
+    _handleMultiMonitorPlacement(window, manager, currentIndex, monitor, otherWindows) {
         const firstFree = this._workspaceManager.getFirstFreeWorkspace(manager, monitor);
         
         if (firstFree === -1) {
@@ -225,7 +227,8 @@ export class WindowPlacementHandler {
         // Restore windows to their original positions
         freeWorkspaceWindows.forEach(w => w.change_workspace_by_index(firstFree, false));
         
-        this.markWindowAsPlaced(window, originalWorkspace, originalWorkspaceIndex);
+        const homeWorkspace = manager.get_workspace_by_index(currentIndex);
+        this.markWindowAsPlaced(window, homeWorkspace);
     }
 
     /**
