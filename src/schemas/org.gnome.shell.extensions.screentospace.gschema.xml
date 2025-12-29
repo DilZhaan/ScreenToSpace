@@ -56,15 +56,6 @@
       </description>
     </key>
 
-    <key name="insert-workspace-after-current" type="b">
-      <default>false</default>
-      <summary>Insert workspace after current</summary>
-      <description>
-        When enabled, ScreenToSpace inserts the target empty workspace immediately after the current workspace instead of using the last workspace.
-        When the window is restored, it returns to its original workspace.
-      </description>
-    </key>
-
     <key name="filter-mode" type="s">
       <default>'blacklist'</default>
       <summary>App filtering mode</summary>
