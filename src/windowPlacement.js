@@ -11,6 +11,14 @@
 import { ExtensionConstants } from './constants.js';
 import GLib from 'gi://GLib';
 
+const DEBUG = false;
+
+function log_debug(msg) {
+    if (DEBUG) {
+        console.log(`[ScreenToSpace] ${msg}`);
+    }
+}
+
 /**
  * Handles placing windows on appropriate workspaces
  */
@@ -18,7 +26,9 @@ export class WindowPlacementHandler {
     constructor(workspaceManager, settings) {
         this._workspaceManager = workspaceManager;
         this._settings = settings;
-        this._placedWindows = {};
+        // Store workspace indices instead of object references for reliability
+        this._placedWindows = new Map();
+        this._pendingOperations = new Set();
     }
 
     /**
@@ -26,19 +36,47 @@ export class WindowPlacementHandler {
      * @param {Object} window - Meta window object
      */
     placeWindowOnWorkspace(window) {
+        if (!this._validateWindow(window)) {
+            log_debug('Invalid window for placement');
+            return;
+        }
+
+        const windowId = window.get_id();
+        
+        // Prevent concurrent operations on the same window
+        if (this._pendingOperations.has(windowId)) {
+            log_debug(`Operation already pending for window ${windowId}`);
+            return;
+        }
+
+        this._pendingOperations.add(windowId);
+
+        try {
+            this._placeWindowOnWorkspaceInternal(window);
+        } catch (error) {
+            console.error(`[ScreenToSpace] Error placing window: ${error.message}`);
+        } finally {
+            this._pendingOperations.delete(windowId);
+        }
+    }
+
+    _placeWindowOnWorkspaceInternal(window) {
         const monitor = window.get_monitor();
         const currentWorkspace = window.get_workspace();
         const otherWindows = this._getOtherWindowsOnMonitor(currentWorkspace, window, monitor);
         
         if (otherWindows.length === 0) {
+            log_debug('No other windows on workspace, not moving');
             return;
         }
 
         const manager = window.get_display().get_workspace_manager();
         const currentIndex = currentWorkspace.index();
 
+        log_debug(`Placing window ${window.get_id()} from workspace ${currentIndex}`);
+
         if (this._isInsertAfterCurrentEnabled()) {
-            this._placeWindowByInsertingAfterCurrent(window, manager, currentWorkspace, currentIndex);
+            this._placeWindowByInsertingAfterCurrent(window, manager, currentIndex);
             return;
         }
         
@@ -54,27 +92,50 @@ export class WindowPlacementHandler {
      * @param {Object} window - Meta window object
      */
     returnWindowToOldWorkspace(window) {
-        const windowId = window.get_id();
-
-        const placedInfo = this._placedWindows[windowId];
-        if (!placedInfo) {
+        if (!this._validateWindow(window)) {
+            log_debug('Invalid window for return');
             return;
         }
 
-        delete this._placedWindows[windowId];
-        this._returnWindowToHomeWorkspaceOrFallback(window, placedInfo);
+        const windowId = window.get_id();
+
+        // Prevent concurrent operations
+        if (this._pendingOperations.has(windowId)) {
+            log_debug(`Operation already pending for window ${windowId}`);
+            return;
+        }
+
+        const placedInfo = this._placedWindows.get(windowId);
+        if (!placedInfo) {
+            log_debug(`No placement info for window ${windowId}`);
+            return;
+        }
+
+        this._pendingOperations.add(windowId);
+
+        try {
+            this._placedWindows.delete(windowId);
+            this._returnWindowToHomeWorkspaceOrFallback(window, placedInfo);
+        } catch (error) {
+            console.error(`[ScreenToSpace] Error returning window: ${error.message}`);
+        } finally {
+            this._pendingOperations.delete(windowId);
+        }
     }
 
     /**
      * Marks a window as placed on a new workspace
      * @param {Object} window - Meta window object
+     * @param {number} homeWorkspaceIndex - Index of the original workspace
      */
-    markWindowAsPlaced(window, homeWorkspace) {
-        this._placedWindows[window.get_id()] = {
+    markWindowAsPlaced(window, homeWorkspaceIndex) {
+        const windowId = window.get_id();
+        this._placedWindows.set(windowId, {
             mode: 'reorder',
-            marker: ExtensionConstants.MARKER_REORDER,
-            homeWorkspace,
-        };
+            homeWorkspaceIndex: homeWorkspaceIndex,
+            timestamp: Date.now(),
+        });
+        log_debug(`Marked window ${windowId} as placed, home: ${homeWorkspaceIndex}`);
     }
 
     forgetWindow(window) {
@@ -82,7 +143,29 @@ export class WindowPlacementHandler {
             return;
         }
 
-        delete this._placedWindows[window.get_id()];
+        const windowId = window.get_id();
+        this._placedWindows.delete(windowId);
+        log_debug(`Forgot window ${windowId}`);
+    }
+
+    /**
+     * Validates that a window is in a usable state
+     * @private
+     */
+    _validateWindow(window) {
+        if (!window) {
+            return false;
+        }
+
+        try {
+            // Check if window still exists and has necessary methods
+            const id = window.get_id();
+            const workspace = window.get_workspace();
+            return id !== undefined && workspace !== null;
+        } catch (error) {
+            log_debug(`Window validation failed: ${error.message}`);
+            return false;
+        }
     }
 
     _isInsertAfterCurrentEnabled() {
@@ -95,14 +178,33 @@ export class WindowPlacementHandler {
         return settings.get_boolean(ExtensionConstants.SETTING_INSERT_AFTER_CURRENT);
     }
 
-    _placeWindowByInsertingAfterCurrent(window, manager, originalWorkspace, originalIndex) {
+    _placeWindowByInsertingAfterCurrent(window, manager, originalIndex) {
         const workspaceCount = manager.get_n_workspaces();
         if (originalIndex >= workspaceCount - 1) {
+            log_debug('Already at last workspace');
             return;
         }
 
-        const emptyIndex = this._workspaceManager.getLastCompletelyEmptyWorkspace(manager);
+        const monitor = window.get_monitor();
+        
+        // First try to find a completely empty workspace
+        let emptyIndex = this._workspaceManager.getLastCompletelyEmptyWorkspace(manager);
+        
+        // If no completely empty workspace, find one that's empty on this monitor
         if (emptyIndex === -1) {
+            log_debug('No completely empty workspace, looking for monitor-specific empty workspace');
+            emptyIndex = this._workspaceManager.getFirstFreeWorkspace(manager, monitor);
+        }
+        
+        if (emptyIndex === -1) {
+            log_debug('No empty workspace found on monitor');
+            // Fall back to regular placement logic
+            const otherWindows = this._getOtherWindowsOnMonitor(window.get_workspace(), window, monitor);
+            if (this._workspaceManager.isWorkspacesOnlyOnPrimary()) {
+                this._handlePrimaryMonitorPlacement(window, manager, originalIndex, monitor, otherWindows);
+            } else {
+                this._handleMultiMonitorPlacement(window, manager, originalIndex, monitor, otherWindows);
+            }
             return;
         }
 
@@ -114,31 +216,67 @@ export class WindowPlacementHandler {
         }
 
         const finalTargetIndex = emptyWorkspace.index();
-        window.change_workspace_by_index(finalTargetIndex, false);
-        manager.get_workspace_by_index(finalTargetIndex).activate(global.get_current_time());
-        this._focusMovedWindow(window);
+        this._moveWindowToWorkspace(window, finalTargetIndex, manager);
 
-        this._placedWindows[window.get_id()] = {
+        const windowId = window.get_id();
+        this._placedWindows.set(windowId, {
             mode: 'insert',
-            homeWorkspace: originalWorkspace,
-        };
+            homeWorkspaceIndex: originalIndex,
+            timestamp: Date.now(),
+        });
+        log_debug(`Inserted workspace after current, window ${windowId} to ${finalTargetIndex}, home: ${originalIndex}`);
     }
 
     _returnWindowToHomeWorkspaceOrFallback(window, placedInfo) {
         const manager = window.get_display().get_workspace_manager();
-        const targetIndex = this._findWorkspaceIndexByIdentity(manager, placedInfo.homeWorkspace);
+        const homeIndex = placedInfo.homeWorkspaceIndex;
 
-        if (targetIndex !== -1) {
-            window.change_workspace_by_index(targetIndex, false);
-            manager.get_workspace_by_index(targetIndex).activate(global.get_current_time());
-            this._focusMovedWindow(window);
-            return;
+        log_debug(`Returning window ${window.get_id()} to home workspace ${homeIndex}`);
+
+        // Validate that the home workspace still exists
+        const workspaceCount = manager.get_n_workspaces();
+        if (homeIndex >= 0 && homeIndex < workspaceCount) {
+            const homeWorkspace = manager.get_workspace_by_index(homeIndex);
+            if (homeWorkspace) {
+                log_debug(`Home workspace ${homeIndex} still exists, moving back`);
+                this._moveWindowToWorkspace(window, homeIndex, manager);
+                return;
+            }
         }
 
         // Original workspace was likely removed (dynamic workspaces).
-        // Fall back to the existing restore heuristic without recreating anything.
-        this._returnWindowUsingCurrentRestoreLogic(window, manager);
-        this._focusMovedWindow(window);
+        // Fall back to finding an appropriate workspace
+        log_debug('Home workspace no longer exists, using fallback logic');
+        this._returnWindowUsingFallbackLogic(window, manager);
+    }
+
+    /**
+     * Moves a window to a workspace and activates it
+     * @private
+     */
+    _moveWindowToWorkspace(window, targetIndex, manager) {
+        if (!this._validateWindow(window)) {
+            log_debug('Cannot move invalid window');
+            return false;
+        }
+
+        const workspaceCount = manager.get_n_workspaces();
+        if (targetIndex < 0 || targetIndex >= workspaceCount) {
+            log_debug(`Invalid target workspace index: ${targetIndex}`);
+            return false;
+        }
+
+        try {
+            window.change_workspace_by_index(targetIndex, false);
+            const targetWorkspace = manager.get_workspace_by_index(targetIndex);
+            targetWorkspace.activate(global.get_current_time());
+            this._focusMovedWindow(window);
+            log_debug(`Moved window ${window.get_id()} to workspace ${targetIndex}`);
+            return true;
+        } catch (error) {
+            console.error(`[ScreenToSpace] Error moving window: ${error.message}`);
+            return false;
+        }
     }
 
     _focusMovedWindow(window) {
@@ -147,45 +285,46 @@ export class WindowPlacementHandler {
         }
 
         // Focusing immediately after workspace changes can be racy.
-        // Using an idle callback makes this much more reliable.
+        // Using double idle callbacks makes this much more reliable.
         GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-            const time = typeof global.get_current_time === 'function'
-                ? global.get_current_time()
-                : 0;
+            GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                if (!this._validateWindow(window)) {
+                    return GLib.SOURCE_REMOVE;
+                }
 
-            if (typeof window.activate === 'function') {
-                window.activate(time);
-            }
+                try {
+                    const time = typeof global.get_current_time === 'function'
+                        ? global.get_current_time()
+                        : 0;
 
-            if (typeof window.raise === 'function') {
-                window.raise();
-            }
+                    if (typeof window.activate === 'function') {
+                        window.activate(time);
+                    }
 
+                    if (typeof window.raise === 'function') {
+                        window.raise();
+                    }
+
+                    log_debug(`Focused window ${window.get_id()}`);
+                } catch (error) {
+                    log_debug(`Error focusing window: ${error.message}`);
+                }
+
+                return GLib.SOURCE_REMOVE;
+            });
             return GLib.SOURCE_REMOVE;
         });
     }
 
-    _findWorkspaceIndexByIdentity(manager, workspace) {
-        if (!manager || !workspace) {
-            return -1;
-        }
-
-        const count = manager.get_n_workspaces();
-        for (let i = 0; i < count; i++) {
-            if (manager.get_workspace_by_index(i) === workspace) {
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
-    _returnWindowUsingCurrentRestoreLogic(window, manager) {
+    _returnWindowUsingFallbackLogic(window, manager) {
         const monitor = window.get_monitor();
         const currentWorkspace = window.get_workspace();
         const otherWindows = this._getOtherWindowsOnMonitor(currentWorkspace, window, monitor);
 
+        // If there are other windows, stay on current workspace
         if (otherWindows.length > 0) {
+            log_debug('Other windows present, not returning to previous workspace');
+            this._focusMovedWindow(window);
             return;
         }
 
@@ -217,21 +356,21 @@ export class WindowPlacementHandler {
         const primaryMonitor = window.get_display().get_primary_monitor();
         
         if (monitor !== primaryMonitor) {
+            log_debug('Window not on primary monitor');
             return;
         }
 
         const firstFree = this._workspaceManager.getFirstFreeWorkspace(manager, monitor);
         
         if (firstFree === -1) {
+            log_debug('No free workspace found');
             return;
         }
 
         this._reorderWorkspaces(manager, currentIndex, firstFree, otherWindows);
 
-        // After reordering, the workspace at the original index is the "home" workspace
-        // from the user's perspective (where other windows stayed).
-        const homeWorkspace = manager.get_workspace_by_index(currentIndex);
-        this.markWindowAsPlaced(window, homeWorkspace);
+        // Store the index instead of the workspace object
+        this.markWindowAsPlaced(window, currentIndex);
     }
 
     /**
@@ -242,6 +381,7 @@ export class WindowPlacementHandler {
         const firstFree = this._workspaceManager.getFirstFreeWorkspace(manager, monitor);
         
         if (firstFree === -1) {
+            log_debug('No free workspace found');
             return;
         }
 
@@ -253,10 +393,16 @@ export class WindowPlacementHandler {
         this._reorderWorkspaces(manager, currentIndex, firstFree, currentWindows);
         
         // Restore windows to their original positions
-        freeWorkspaceWindows.forEach(w => w.change_workspace_by_index(firstFree, false));
+        freeWorkspaceWindows.forEach(w => {
+            try {
+                w.change_workspace_by_index(firstFree, false);
+            } catch (error) {
+                log_debug(`Error restoring window: ${error.message}`);
+            }
+        });
         
-        const homeWorkspace = manager.get_workspace_by_index(currentIndex);
-        this.markWindowAsPlaced(window, homeWorkspace);
+        // Store the index instead of the workspace object
+        this.markWindowAsPlaced(window, currentIndex);
     }
 
     /**
@@ -316,14 +462,31 @@ export class WindowPlacementHandler {
      * @private
      */
     _reorderWorkspaces(manager, currentIndex, targetIndex, windows) {
-        if (currentIndex < targetIndex) {
-            manager.reorder_workspace(manager.get_workspace_by_index(targetIndex), currentIndex);
-            manager.reorder_workspace(manager.get_workspace_by_index(currentIndex + 1), targetIndex);
-            windows.forEach(w => w.change_workspace_by_index(currentIndex, false));
-        } else if (currentIndex > targetIndex) {
-            manager.reorder_workspace(manager.get_workspace_by_index(currentIndex), targetIndex);
-            manager.reorder_workspace(manager.get_workspace_by_index(targetIndex + 1), currentIndex);
-            windows.forEach(w => w.change_workspace_by_index(currentIndex, false));
+        try {
+            if (currentIndex < targetIndex) {
+                manager.reorder_workspace(manager.get_workspace_by_index(targetIndex), currentIndex);
+                manager.reorder_workspace(manager.get_workspace_by_index(currentIndex + 1), targetIndex);
+                windows.forEach(w => {
+                    try {
+                        w.change_workspace_by_index(currentIndex, false);
+                    } catch (error) {
+                        log_debug(`Error moving window during reorder: ${error.message}`);
+                    }
+                });
+            } else if (currentIndex > targetIndex) {
+                manager.reorder_workspace(manager.get_workspace_by_index(currentIndex), targetIndex);
+                manager.reorder_workspace(manager.get_workspace_by_index(targetIndex + 1), currentIndex);
+                windows.forEach(w => {
+                    try {
+                        w.change_workspace_by_index(currentIndex, false);
+                    } catch (error) {
+                        log_debug(`Error moving window during reorder: ${error.message}`);
+                    }
+                });
+            }
+            log_debug(`Reordered workspaces: current=${currentIndex}, target=${targetIndex}`);
+        } catch (error) {
+            console.error(`[ScreenToSpace] Error reordering workspaces: ${error.message}`);
         }
     }
 
@@ -331,7 +494,8 @@ export class WindowPlacementHandler {
      * Cleanup resources
      */
     destroy() {
-        this._placedWindows = {};
+        this._placedWindows.clear();
+        this._pendingOperations.clear();
         this._workspaceManager = null;
         this._settings = null;
     }
