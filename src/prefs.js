@@ -55,7 +55,6 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
 
         behaviorGroup.add(this._createTriggerModeRow(window));
         behaviorGroup.add(this._createOverrideModifierRow(window));
-        behaviorGroup.add(this._createInsertAfterCurrentRow(window));
         page.add(behaviorGroup);
 
         // App Filtering group (mode selector only)
@@ -645,43 +644,6 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
             row.sensitive = false;
             row.subtitle = 'Hold while maximizing or fullscreening to use GNOME\'s default behavior (update required)';
         }
-
-        return row;
-    }
-
-    _createInsertAfterCurrentRow(window) {
-        const row = new Adw.ActionRow({
-            title: 'Insert workspace after current',
-            subtitle: 'Place the new workspace right after the current one and restore windows back to their original workspace',
-        });
-
-        row.add_prefix(new Gtk.Image({
-            icon_name: 'go-next-symbolic',
-            valign: Gtk.Align.CENTER,
-        }));
-
-        const schema = window._settings.settings_schema;
-        const hasKey = schema?.has_key?.(ExtensionConstants.SETTING_INSERT_AFTER_CURRENT);
-
-        const toggle = new Gtk.Switch({
-            active: hasKey ? window._settings.get_boolean(ExtensionConstants.SETTING_INSERT_AFTER_CURRENT) : false,
-            valign: Gtk.Align.CENTER,
-        });
-
-        if (hasKey) {
-            window._settings.bind(
-                ExtensionConstants.SETTING_INSERT_AFTER_CURRENT,
-                toggle,
-                'active',
-                Gio.SettingsBindFlags.DEFAULT
-            );
-        } else {
-            toggle.sensitive = false;
-            row.subtitle = 'Place the new workspace right after the current one and restore windows back to their original workspace (update required)';
-        }
-
-        row.add_suffix(toggle);
-        row.activatable_widget = toggle;
 
         return row;
     }
