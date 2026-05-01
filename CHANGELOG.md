@@ -1,6 +1,6 @@
 # Changelog
 
-## Version 13 - GNOME Shell 50 Compatibility
+## Version 14 - GNOME Shell 50 Compatibility
 
 - Added GNOME Shell 50 to supported shell versions.
 - Updated documentation to list GNOME Shell 49 and 50 compatibility.
