@@ -4,9 +4,10 @@
   "url": "https://github.com/DilZhaan/ScreenToSpace",
   "uuid": "screentospace@dilzhan.dev",
   "shell-version": [
-    "49"
+    "49",
+    "50"
   ],
-  "version": 12,
+  "version": 13,
   "settings-schema": "org.gnome.shell.extensions.screentospace",
   "donations": {
     "buymeacoffee": "dilzhan"

@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 13 - GNOME Shell 50 Compatibility
+
+- Added GNOME Shell 50 to supported shell versions.
+- Updated documentation to list GNOME Shell 49 and 50 compatibility.
+
+---
+
 ## Version 10 - Reliability & Maintainability Refactor
 
 ### Major Improvements
@@ -70,4 +77,3 @@
 
 ## Version 9 and Earlier
 See git history for previous changes.
-

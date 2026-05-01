@@ -3,7 +3,7 @@
 A GNOME Shell extension that automatically moves maximized and fullscreen windows to empty workspaces, keeping your workflow organized without manual intervention. Includes per-application filtering and multi-monitor support.
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
-[![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-49-blue.svg)](https://www.gnome.org/)
+[![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-49%20%7C%2050-blue.svg)](https://www.gnome.org/)
 
 ---
 
@@ -52,7 +52,7 @@ Extension information and version details:
 
 ## Requirements
 
-- GNOME Shell 49
+- GNOME Shell 49 or 50
 - Standard GNOME Shell extension runtime (no additional dependencies)
 
 ---
@@ -340,5 +340,4 @@ Support: [buymeacoffee.com/dilzhan](https://buymeacoffee.com/dilzhan)
 
 ---
 
-**Note:** This extension is developed and tested on Fedora/RHEL-based systems running GNOME Shell 49. Community contributions and bug reports welcome.
-
+**Note:** This extension is developed and tested on Fedora/RHEL-based systems running GNOME Shell 49 and 50. Community contributions and bug reports welcome.
