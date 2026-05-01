@@ -48,6 +48,14 @@
       </choices>
     </key>
 
+    <key name="disable-on-external-monitor" type="b">
+      <default>false</default>
+      <summary>Disable when external monitor is connected</summary>
+      <description>
+        When enabled, ScreenToSpace does not move windows while more than one monitor is connected.
+      </description>
+    </key>
+
     <key name="triggers-migrated" type="b">
       <default>false</default>
       <summary>Internal: triggers migrated</summary>

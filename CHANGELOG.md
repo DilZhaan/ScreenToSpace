@@ -4,6 +4,11 @@
 
 - Added GNOME Shell 50 to supported shell versions.
 - Updated documentation to list GNOME Shell 49 and 50 compatibility.
+- Fixed a GNOME Shell crash that could happen when closing a fullscreen window while PaperWM is also enabled.
+- Deferred the automatic return to the original workspace until after Mutter finishes unmanaging the closing window.
+- Avoided re-querying window/app eligibility during destroy handling, so tracked windows are cleaned up without touching unstable teardown state.
+- Added an external monitor override option to bypass ScreenToSpace while more than one monitor is connected.
+- Fixed blacklisted apps reopening in fullscreen and being moved before GNOME exposes their app ID.
 
 ---
 

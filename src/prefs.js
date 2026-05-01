@@ -55,6 +55,7 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
 
         behaviorGroup.add(this._createTriggerModeRow(window));
         behaviorGroup.add(this._createOverrideModifierRow(window));
+        behaviorGroup.add(this._createExternalMonitorOverrideRow(window));
         page.add(behaviorGroup);
 
         // App Filtering group (mode selector only)
@@ -643,6 +644,49 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         } else {
             row.sensitive = false;
             row.subtitle = 'Hold while maximizing or fullscreening to use GNOME\'s default behavior (update required)';
+        }
+
+        return row;
+    }
+
+    _createExternalMonitorOverrideRow(window) {
+        const schema = window._settings.settings_schema;
+        const hasKey = schema?.has_key?.(ExtensionConstants.SETTING_DISABLE_ON_EXTERNAL_MONITOR);
+
+        const row = new Adw.ActionRow({
+            title: 'External monitor override',
+            subtitle: 'Use GNOME\'s default behavior while more than one monitor is connected',
+        });
+
+        row.add_prefix(new Gtk.Image({
+            icon_name: 'video-display-symbolic',
+            valign: Gtk.Align.CENTER,
+        }));
+
+        const toggle = new Gtk.Switch({
+            active: hasKey
+                ? window._settings.get_boolean(ExtensionConstants.SETTING_DISABLE_ON_EXTERNAL_MONITOR)
+                : false,
+            valign: Gtk.Align.CENTER,
+        });
+
+        row.add_suffix(toggle);
+        row.activatable_widget = toggle;
+
+        if (hasKey) {
+            toggle.connect('notify::active', switchWidget => {
+                window._settings.set_boolean(
+                    ExtensionConstants.SETTING_DISABLE_ON_EXTERNAL_MONITOR,
+                    switchWidget.active
+                );
+            });
+
+            window._settings.connect(`changed::${ExtensionConstants.SETTING_DISABLE_ON_EXTERNAL_MONITOR}`, () => {
+                toggle.active = window._settings.get_boolean(ExtensionConstants.SETTING_DISABLE_ON_EXTERNAL_MONITOR);
+            });
+        } else {
+            row.sensitive = false;
+            row.subtitle = 'Use GNOME\'s default behavior while more than one monitor is connected (update required)';
         }
 
         return row;

@@ -11,6 +11,7 @@
 import { ExtensionConstants } from './constants.js';
 import Meta from 'gi://Meta';
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 
 /**
  * Handles window manager events
@@ -21,6 +22,7 @@ export class WindowEventHandler {
         this._placementHandler = placementHandler;
         this._settings = settings;
         this._pendingActions = new Map();
+        this._pendingMapSourceIds = new Set();
     }
 
     /**
@@ -33,9 +35,11 @@ export class WindowEventHandler {
             return;
         }
         
-        if (this._windowFilter.shouldPlaceOnNewWorkspace(window)) {
-            this._placementHandler.placeWindowOnWorkspace(window);
+        if (this._shouldBypassForExternalMonitor()) {
+            return;
         }
+
+        this._queueMapPlacement(window);
     }
 
     /**
@@ -50,12 +54,15 @@ export class WindowEventHandler {
 
         const windowId = window.get_id();
         this._pendingActions.delete(windowId);
-        
-        if (!this._windowFilter.isManagedWindow(window)) {
+
+        if (this._shouldBypassForExternalMonitor()) {
+            this._placementHandler.forgetWindow(window);
             return;
         }
 
-        // Let placement handler decide if we need to return to home workspace
+        // Destroy can run while Mutter is unmanaging the window, so avoid
+        // re-querying app/window state here. The placement handler only acts
+        // on windows it already tracked.
         this._placementHandler.handleWindowDestroyed(window);
     }
 
@@ -69,6 +76,10 @@ export class WindowEventHandler {
             return;
         }
         
+        if (this._shouldBypassForExternalMonitor()) {
+            return;
+        }
+
         if (this._windowFilter.shouldPlaceOnNewWorkspace(window)) {
             this._placementHandler.placeWindowOnWorkspace(window);
         }
@@ -85,6 +96,11 @@ export class WindowEventHandler {
         }
         
         if (!this._windowFilter.isManagedWindow(window)) {
+            return;
+        }
+
+        if (this._shouldBypassForExternalMonitor()) {
+            this._placementHandler.forgetWindow(window);
             return;
         }
         
@@ -108,6 +124,12 @@ export class WindowEventHandler {
         if (this._shouldBypassForOverrideModifier(change)) {
             return;
         }
+
+        if (this._shouldBypassForExternalMonitor()) {
+            this._pendingActions.delete(windowId);
+            this._placementHandler.forgetWindow(window);
+            return;
+        }
         
         if (this._windowFilter.shouldPlaceOnSizeChange(window, change)) {
             this._pendingActions.set(windowId, ExtensionConstants.MARKER_PLACE);
@@ -122,6 +144,55 @@ export class WindowEventHandler {
         }
 
         return this._isOverrideModifierPressed();
+    }
+
+    _queueMapPlacement(window) {
+        this._queueIdle(() => {
+            this._queueIdle(() => {
+                try {
+                    if (this._shouldBypassForExternalMonitor()) {
+                        this._placementHandler.forgetWindow(window);
+                        return;
+                    }
+
+                    if (this._windowFilter.shouldPlaceOnNewWorkspace(window)) {
+                        this._placementHandler.placeWindowOnWorkspace(window);
+                    }
+                } catch (error) {
+                    // Window may have been destroyed before the deferred map check.
+                }
+            });
+        });
+    }
+
+    _queueIdle(callback) {
+        let sourceId = 0;
+        sourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._pendingMapSourceIds.delete(sourceId);
+
+            if (!this._placementHandler) {
+                return GLib.SOURCE_REMOVE;
+            }
+
+            callback();
+            return GLib.SOURCE_REMOVE;
+        });
+
+        this._pendingMapSourceIds.add(sourceId);
+        return sourceId;
+    }
+
+    _shouldBypassForExternalMonitor() {
+        const schema = this._settings?.settings_schema;
+        if (!schema?.has_key?.(ExtensionConstants.SETTING_DISABLE_ON_EXTERNAL_MONITOR)) {
+            return false;
+        }
+
+        if (!this._settings.get_boolean(ExtensionConstants.SETTING_DISABLE_ON_EXTERNAL_MONITOR)) {
+            return false;
+        }
+
+        return global.display?.get_n_monitors?.() > 1;
     }
 
     _isOverrideModifierPressed() {
@@ -180,6 +251,11 @@ export class WindowEventHandler {
         const action = this._pendingActions.get(windowId);
         this._pendingActions.delete(windowId);
 
+        if (this._shouldBypassForExternalMonitor()) {
+            this._placementHandler.forgetWindow(window);
+            return;
+        }
+
         if (action === ExtensionConstants.MARKER_PLACE) {
             this._placementHandler.placeWindowOnWorkspace(window);
         } else if (action === ExtensionConstants.MARKER_BACK) {
@@ -199,6 +275,8 @@ export class WindowEventHandler {
      */
     destroy() {
         this._pendingActions.clear();
+        this._pendingMapSourceIds.forEach(sourceId => GLib.source_remove(sourceId));
+        this._pendingMapSourceIds.clear();
         this._windowFilter = null;
         this._placementHandler = null;
         this._settings = null;

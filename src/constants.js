@@ -14,6 +14,7 @@ export const ExtensionConstants = {
     SETTING_TRIGGER_ON_MAXIMIZE: 'trigger-on-maximize',
     SETTING_TRIGGER_ON_FULLSCREEN: 'trigger-on-fullscreen',
     SETTING_OVERRIDE_MODIFIER: 'override-modifier',
+    SETTING_DISABLE_ON_EXTERNAL_MONITOR: 'disable-on-external-monitor',
     SETTING_TRIGGERS_MIGRATED: 'triggers-migrated',
     SETTING_FILTER_MODE: 'filter-mode',
     SETTING_BLACKLIST_APPS: 'blacklist-apps',
