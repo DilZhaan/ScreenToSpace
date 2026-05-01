@@ -181,7 +181,7 @@ export class WindowFilter {
 
         if (mode === 'blacklist') {
             if (!appId) {
-                return true;
+                return blacklist.size === 0;
             }
 
             return !blacklist.has(appId);

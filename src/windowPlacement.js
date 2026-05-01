@@ -20,6 +20,7 @@ export class WindowPlacementHandler {
         this._settings = settings;
         this._placedWindows = new Map();
         this._pendingOperations = new Set();
+        this._activationSourceIds = new Set();
     }
 
     /**
@@ -114,7 +115,7 @@ export class WindowPlacementHandler {
 
         // If this window was moved by us, return to the original workspace
         if (placedInfo) {
-            this._returnToHomeWorkspaceOnClose(placedInfo);
+            this._scheduleReturnToHomeWorkspaceOnClose(placedInfo);
         }
     }
 
@@ -122,6 +123,14 @@ export class WindowPlacementHandler {
      * Returns to home workspace when a placed window is closed
      * @private
      */
+    _scheduleReturnToHomeWorkspaceOnClose(placedInfo) {
+        this._queueIdle(() => {
+            this._queueIdle(() => {
+                this._returnToHomeWorkspaceOnClose(placedInfo);
+            });
+        });
+    }
+
     _returnToHomeWorkspaceOnClose(placedInfo) {
         const manager = global.display.get_workspace_manager();
         const homeIndex = placedInfo.homeWorkspaceIndex;
@@ -131,10 +140,26 @@ export class WindowPlacementHandler {
         if (homeIndex >= 0 && homeIndex < workspaceCount) {
             const homeWorkspace = manager.get_workspace_by_index(homeIndex);
             if (homeWorkspace) {
-                // Switch back to original workspace
                 homeWorkspace.activate(global.get_current_time());
             }
         }
+    }
+
+    _queueIdle(callback) {
+        let sourceId = 0;
+        sourceId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+            this._activationSourceIds.delete(sourceId);
+
+            if (!this._workspaceManager) {
+                return GLib.SOURCE_REMOVE;
+            }
+
+            callback();
+            return GLib.SOURCE_REMOVE;
+        });
+
+        this._activationSourceIds.add(sourceId);
+        return sourceId;
     }
 
     /**
@@ -362,6 +387,8 @@ export class WindowPlacementHandler {
     destroy() {
         this._placedWindows.clear();
         this._pendingOperations.clear();
+        this._activationSourceIds.forEach(sourceId => GLib.source_remove(sourceId));
+        this._activationSourceIds.clear();
         this._workspaceManager = null;
         this._settings = null;
     }

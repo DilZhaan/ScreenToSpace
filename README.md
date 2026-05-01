@@ -3,7 +3,7 @@
 A GNOME Shell extension that automatically moves maximized and fullscreen windows to empty workspaces, keeping your workflow organized without manual intervention. Includes per-application filtering and multi-monitor support.
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
-[![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-49-blue.svg)](https://www.gnome.org/)
+[![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-49%20%7C%2050-blue.svg)](https://www.gnome.org/)
 
 ---
 
@@ -13,6 +13,7 @@ A GNOME Shell extension that automatically moves maximized and fullscreen window
 - **Automatic workspace isolation** — Maximized and fullscreen windows move to empty workspaces, one window per space
 - **Configurable trigger behavior** — Choose whether maximize, fullscreen, or both trigger workspace isolation via dropdown selector
 - **Override modifier key** — Hold Alt/Super/Ctrl/Shift while maximizing/fullscreening to bypass ScreenToSpace and use GNOME's default behavior
+- **External monitor override** — Optionally disable workspace moves while more than one monitor is connected
 - **Flexible workspace placement** — Insert new workspace after current (with restore to original) or use the last empty workspace
 - **Smart workspace reordering** — Minimized disruption to existing window layout when creating or destroying isolated workspaces
 - **Focus preservation** — Moved/restored windows automatically gain focus and raise to prevent being hidden behind other windows
@@ -52,7 +53,7 @@ Extension information and version details:
 
 ## Requirements
 
-- GNOME Shell 49
+- GNOME Shell 49 or 50
 - Standard GNOME Shell extension runtime (no additional dependencies)
 
 ---
@@ -107,6 +108,7 @@ gnome-extensions prefs screentospace@dilzhan.dev
   - **Full Screen** — Only fullscreen windows trigger workspace isolation
   - **Both** (default) — Both maximized and fullscreen windows trigger workspace isolation
 - *Override modifier* — Choose a modifier key (None/Alt/Super/Ctrl/Shift) that, when held during maximize/fullscreen, bypasses ScreenToSpace and uses GNOME's default behavior
+- *External monitor override* — When enabled, ScreenToSpace uses GNOME's default maximize/fullscreen behavior while more than one monitor is connected
 - *Insert workspace after current* — When enabled, places the new workspace immediately after the current one (instead of at the end) and restores windows back to their exact original workspace. When disabled, uses the last empty workspace with smart reordering
 
 **App Filtering**
@@ -159,6 +161,7 @@ Extension metadata: name, author, version, repository link
 - App IDs are normalized: lowercased, `.desktop` suffix stripped
 - Window IDs resolved via `get_gtk_application_id()`, `get_wm_class_instance()`, or `get_wm_class()` (first non-null match)
 - **Blacklist mode**: If app ID is in blacklist, skip workspace isolation (window stays in current workspace regardless of maximize/fullscreen)
+- If a blacklist is configured and GNOME has not exposed an app ID for a newly mapped window yet, ScreenToSpace waits briefly and then skips unidentified windows rather than moving a possibly blacklisted app
 - **Whitelist mode**: If whitelist is non-empty, only manage windows whose app ID is in the whitelist; all others are ignored
 - Empty whitelist in whitelist mode = manage nothing (explicit opt-in required)
 
@@ -340,5 +343,4 @@ Support: [buymeacoffee.com/dilzhan](https://buymeacoffee.com/dilzhan)
 
 ---
 
-**Note:** This extension is developed and tested on Fedora/RHEL-based systems running GNOME Shell 49. Community contributions and bug reports welcome.
-
+**Note:** This extension is developed and tested on Fedora/RHEL-based systems running GNOME Shell 49 and 50. Community contributions and bug reports welcome.
