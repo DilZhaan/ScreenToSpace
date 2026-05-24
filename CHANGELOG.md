@@ -9,6 +9,8 @@
 - Avoided re-querying window/app eligibility during destroy handling, so tracked windows are cleaned up without touching unstable teardown state.
 - Added an external monitor override option to bypass ScreenToSpace while more than one monitor is connected.
 - Fixed blacklisted apps reopening in fullscreen and being moved before GNOME exposes their app ID.
+- Added support for manually entering app IDs and window classes in the app filter list.
+- Added an optional safe adjacent-workspace placement mode that reuses existing empty workspaces and falls back to the standard placement behavior.
 
 ---
 
