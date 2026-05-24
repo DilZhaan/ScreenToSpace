@@ -14,7 +14,7 @@ A GNOME Shell extension that automatically moves maximized and fullscreen window
 - **Configurable trigger behavior** — Choose whether maximize, fullscreen, or both trigger workspace isolation via dropdown selector
 - **Override modifier key** — Hold Alt/Super/Ctrl/Shift while maximizing/fullscreening to bypass ScreenToSpace and use GNOME's default behavior
 - **External monitor override** — Optionally disable workspace moves while more than one monitor is connected
-- **Flexible workspace placement** — Insert new workspace after current (with restore to original) or use the last empty workspace
+- **Adjacent workspace placement** — Optionally place isolated windows on an existing empty workspace next to the current one, with automatic fallback
 - **Smart workspace reordering** — Minimized disruption to existing window layout when creating or destroying isolated workspaces
 - **Focus preservation** — Moved/restored windows automatically gain focus and raise to prevent being hidden behind other windows
 - **Multi-monitor aware** — Respects GNOME's "workspaces on primary display only" setting; handles per-monitor workspace assignment correctly
@@ -108,8 +108,8 @@ gnome-extensions prefs screentospace@dilzhan.dev
   - **Full Screen** — Only fullscreen windows trigger workspace isolation
   - **Both** (default) — Both maximized and fullscreen windows trigger workspace isolation
 - *Override modifier* — Choose a modifier key (None/Alt/Super/Ctrl/Shift) that, when held during maximize/fullscreen, bypasses ScreenToSpace and uses GNOME's default behavior
+- *Place next to current workspace* — When enabled, ScreenToSpace tries to use an existing empty workspace directly after the current workspace. If that is not available, it falls back to standard placement
 - *External monitor override* — When enabled, ScreenToSpace uses GNOME's default maximize/fullscreen behavior while more than one monitor is connected
-- *Insert workspace after current* — When enabled, places the new workspace immediately after the current one (instead of at the end) and restores windows back to their exact original workspace. When disabled, uses the last empty workspace with smart reordering
 
 **App Filtering**
 - *Filter mode* — Choose **Blacklist** (ignore listed apps) or **Whitelist** (manage only listed apps)
@@ -142,9 +142,9 @@ Extension metadata: name, author, version, repository link
 2. Check if override modifier is pressed; if so, bypass ScreenToSpace (GNOME default behavior)
 3. `WindowFilter` checks if window qualifies: normal window type, matches app filter rules, matches configured trigger behavior (maximize/fullscreen/both)
 4. `WorkspaceManager` scans for empty workspace on the same monitor
-5. `WindowPlacementHandler` places window using configured mode:
-   - **Insert after current mode**: Takes the last completely empty workspace, reorders it to position after current workspace, moves only the isolated window there, stores reference to original workspace
-   - **Reorder mode** (default): Swaps empty workspace with current workspace, other windows stay in place, stores reference to home workspace
+5. `WindowPlacementHandler` places the window:
+   - **Adjacent mode**: Reuses an existing empty workspace after the current workspace when available, then moves the isolated window there
+   - **Standard mode/fallback**: Swaps an empty workspace with the current workspace, keeping other windows in place and storing the home workspace index
 6. Window is explicitly focused and raised to ensure visibility
 
 **Return (window exits maximized/fullscreen state):**
@@ -192,8 +192,8 @@ src/
 
 **Key modules:**
 - `WindowFilter` — `isManagedWindow(window)` combines type check + app filter logic; `shouldPlaceOnSizeChange(window, change)` checks maximize/fullscreen triggers independently; app ID normalization and blacklist/whitelist evaluation happen here
-- `WindowPlacementHandler` — `placeWindowOnWorkspace(window)`, `returnWindowToOldWorkspace(window)` encapsulate workspace operations; supports both reorder mode and insert-after-current mode; stores workspace references for identity-based restore; handles focus/raise after moves
-- `WorkspaceManager` — `getFirstFreeWorkspace(manager, monitor)`, `getLastOccupiedWorkspace(manager, currentIndex, monitor)`, `getLastCompletelyEmptyWorkspace(manager)` abstract workspace discovery
+- `WindowPlacementHandler` — `placeWindowOnWorkspace(window)`, `returnWindowToOldWorkspace(window)` encapsulate workspace operations; stores workspace indices for restore; handles focus/raise after moves; adjacent placement is guarded by per-window cooldown and fallback logic
+- `WorkspaceManager` — `getFirstFreeWorkspace(manager, monitor)`, `getFirstCompletelyEmptyWorkspaceAfter(manager, currentIndex)`, `getLastOccupiedWorkspace(manager, currentIndex, monitor)` abstract workspace discovery
 - `WindowEventHandler` — Bridges window manager signals (`map`, `size-change`, `minimize`, etc.) to placement/filter logic; checks override modifier state; tracks pending actions between `size-change` and `size-changed` signals
 
 ---
@@ -322,7 +322,7 @@ Support: [buymeacoffee.com/dilzhan](https://buymeacoffee.com/dilzhan)
 **v9** (2025-12-28)
 - **Behavior dropdown**: Configure maximize/fullscreen triggers independently (Maximized, Full Screen, or Both)
 - **Override modifier**: Hold Alt/Super/Ctrl/Shift while maximizing/fullscreening to bypass ScreenToSpace
-- **Insert workspace after current**: Optional mode to place new workspace right after current (with restore to exact original workspace)
+- **Adjacent workspace placement**: Optional mode to place isolated windows next to the current workspace when an empty workspace is already available
 - **Unified restore behavior**: Always returns to original workspace if it exists, with fallback to last occupied/nearest
 - **Focus preservation**: Moved/restored windows are explicitly focused and raised to prevent being hidden
 - **Identity-based workspace tracking**: Robust handling of dynamic workspace removal

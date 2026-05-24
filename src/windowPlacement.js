@@ -21,6 +21,7 @@ export class WindowPlacementHandler {
         this._placedWindows = new Map();
         this._pendingOperations = new Set();
         this._activationSourceIds = new Set();
+        this._lastPlacementTimes = new Map();
     }
 
     /**
@@ -34,7 +35,9 @@ export class WindowPlacementHandler {
 
         const windowId = window.get_id();
         
-        if (this._pendingOperations.has(windowId)) {
+        if (this._pendingOperations.has(windowId) ||
+            this._placedWindows.has(windowId) ||
+            this._isPlacementCoolingDown(windowId)) {
             return;
         }
 
@@ -58,6 +61,11 @@ export class WindowPlacementHandler {
 
         const manager = window.get_display().get_workspace_manager();
         const currentIndex = currentWorkspace.index();
+
+        if (this._shouldTryAdjacentPlacement() &&
+            this._tryAdjacentPlacement(window, manager, currentIndex, monitor)) {
+            return;
+        }
         
         if (this._workspaceManager.isWorkspacesOnlyOnPrimary()) {
             this._handlePrimaryMonitorPlacement(window, manager, currentIndex, monitor, otherWindows);
@@ -112,6 +120,7 @@ export class WindowPlacementHandler {
         // Clean up tracking
         this._placedWindows.delete(windowId);
         this._pendingOperations.delete(windowId);
+        this._lastPlacementTimes.delete(windowId);
 
         // If this window was moved by us, return to the original workspace
         if (placedInfo) {
@@ -172,6 +181,7 @@ export class WindowPlacementHandler {
         this._placedWindows.set(windowId, {
             homeWorkspaceIndex: homeWorkspaceIndex,
         });
+        this._lastPlacementTimes.set(windowId, GLib.get_monotonic_time());
     }
 
     forgetWindow(window) {
@@ -182,6 +192,7 @@ export class WindowPlacementHandler {
         const windowId = window.get_id();
         this._placedWindows.delete(windowId);
         this._pendingOperations.delete(windowId);
+        this._lastPlacementTimes.delete(windowId);
     }
 
     _returnWindowToHomeWorkspace(window, placedInfo) {
@@ -265,6 +276,81 @@ export class WindowPlacementHandler {
             !w.is_always_on_all_workspaces() && 
             w.get_monitor() === monitor
         );
+    }
+
+    _isPlacementCoolingDown(windowId) {
+        const lastPlacementTime = this._lastPlacementTimes.get(windowId);
+        if (!lastPlacementTime) {
+            return false;
+        }
+
+        return GLib.get_monotonic_time() - lastPlacementTime < 750000;
+    }
+
+    _shouldTryAdjacentPlacement() {
+        const schema = this._settings?.settings_schema;
+        if (!schema?.has_key?.(ExtensionConstants.SETTING_INSERT_WORKSPACE_AFTER_CURRENT)) {
+            return false;
+        }
+
+        return this._settings.get_boolean(ExtensionConstants.SETTING_INSERT_WORKSPACE_AFTER_CURRENT);
+    }
+
+    _tryAdjacentPlacement(window, manager, currentIndex, monitor) {
+        try {
+            const primaryMonitor = window.get_display().get_primary_monitor();
+            const monitorCount = global.display?.get_n_monitors?.() || 1;
+            const supportsAdjacentMode = monitor === primaryMonitor &&
+                (monitorCount === 1 || this._workspaceManager.isWorkspacesOnlyOnPrimary());
+
+            if (!supportsAdjacentMode) {
+                return false;
+            }
+
+            const sourceIndex = this._workspaceManager.getFirstCompletelyEmptyWorkspaceAfter(manager, currentIndex);
+            const targetIndex = currentIndex + 1;
+
+            if (sourceIndex === -1 || targetIndex >= manager.get_n_workspaces()) {
+                return false;
+            }
+
+            const sourceWorkspace = manager.get_workspace_by_index(sourceIndex);
+            if (!sourceWorkspace) {
+                return false;
+            }
+
+            if (sourceIndex !== targetIndex) {
+                manager.reorder_workspace(sourceWorkspace, targetIndex);
+            }
+
+            const targetWorkspace = manager.get_workspace_by_index(targetIndex);
+            if (!targetWorkspace || this._workspaceHasWindows(targetWorkspace)) {
+                return false;
+            }
+
+            if (!this._moveWindowToWorkspace(window, targetIndex, manager)) {
+                return false;
+            }
+
+            this.markWindowAsPlaced(window, currentIndex);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    _workspaceHasWindows(workspace) {
+        try {
+            return workspace.list_windows().some(w => {
+                try {
+                    return !w.is_always_on_all_workspaces();
+                } catch (error) {
+                    return false;
+                }
+            });
+        } catch (error) {
+            return true;
+        }
     }
 
     /**
@@ -387,6 +473,7 @@ export class WindowPlacementHandler {
     destroy() {
         this._placedWindows.clear();
         this._pendingOperations.clear();
+        this._lastPlacementTimes.clear();
         this._activationSourceIds.forEach(sourceId => GLib.source_remove(sourceId));
         this._activationSourceIds.clear();
         this._workspaceManager = null;

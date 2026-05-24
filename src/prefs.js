@@ -54,6 +54,7 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         });
 
         behaviorGroup.add(this._createTriggerModeRow(window));
+        behaviorGroup.add(this._createPlacementModeRow(window));
         behaviorGroup.add(this._createOverrideModifierRow(window));
         behaviorGroup.add(this._createExternalMonitorOverrideRow(window));
         page.add(behaviorGroup);
@@ -125,8 +126,57 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         // Add application group (top)
         const addGroup = new Adw.PreferencesGroup({
             title: 'Add Application',
-            description: 'Add apps to the filter list',
+            description: 'Add apps to the filter list, including custom app IDs and window classes',
         });
+
+        const customEntryRow = new Adw.ActionRow({
+            title: 'Add custom app ID or window class',
+            subtitle: 'Use this for windows that do not appear in the app picker, such as gjs',
+            activatable: false,
+        });
+
+        const customEntry = new Gtk.Entry({
+            placeholder_text: 'Type app ID or window class',
+            hexpand: true,
+            valign: Gtk.Align.CENTER,
+        });
+
+        const customAddButton = new Gtk.Button({
+            icon_name: 'list-add-symbolic',
+            valign: Gtk.Align.CENTER,
+            tooltip_text: 'Add to list',
+        });
+        customAddButton.add_css_class('flat');
+        customAddButton.add_css_class('circular');
+
+        const addCustom = () => {
+            const raw = customEntry.text || '';
+            const trimmed = raw.trim();
+            if (!trimmed) {
+                return;
+            }
+
+            const sanitized = this._sanitizeAppId(trimmed);
+            if (!sanitized) {
+                return;
+            }
+
+            const mode = window._settings.get_string(ExtensionConstants.SETTING_FILTER_MODE);
+            const listKey = mode === 'whitelist'
+                ? ExtensionConstants.SETTING_WHITELIST_APPS
+                : ExtensionConstants.SETTING_BLACKLIST_APPS;
+
+            if (this._addAppIdToList(window, listKey, sanitized)) {
+                customEntry.text = '';
+            }
+        };
+
+        customEntry.connect('activate', addCustom);
+        customAddButton.connect('clicked', addCustom);
+
+        customEntryRow.add_suffix(customEntry);
+        customEntryRow.add_suffix(customAddButton);
+        addGroup.add(customEntryRow);
 
         const addRow = new Adw.ActionRow({
             title: 'Add application',
@@ -179,6 +229,57 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         page.add(listGroup);
 
         return page;
+    }
+
+    /**
+     * Adds an app ID to the active list if it is not already present
+     * @private
+     */
+    _addAppIdToList(window, listKey, appId) {
+        const current = window._settings.get_strv(listKey);
+        const normalized = this._normalizeAppId(appId);
+        if (!normalized) {
+            return false;
+        }
+
+        const existing = new Set(current.map(id => this._normalizeAppId(id)).filter(Boolean));
+        if (existing.has(normalized)) {
+            return false;
+        }
+
+        const next = [...current, appId];
+        window._settings.set_strv(listKey, next);
+        return true;
+    }
+
+    /**
+     * Sanitizes app IDs for storage while preserving the user-provided identifier
+     * @private
+     */
+    _sanitizeAppId(appId) {
+        if (!appId || typeof appId !== 'string') {
+            return null;
+        }
+
+        const trimmed = appId.trim();
+        return trimmed.length > 0 ? trimmed : null;
+    }
+
+    /**
+     * Normalizes app IDs to match the filter normalization logic
+     * @private
+     */
+    _normalizeAppId(appId) {
+        if (!appId || typeof appId !== 'string') {
+            return null;
+        }
+
+        const trimmed = appId.trim().toLowerCase();
+        if (!trimmed) {
+            return null;
+        }
+
+        return trimmed.endsWith('.desktop') ? trimmed.slice(0, -8) : trimmed;
     }
 
     /**
@@ -285,6 +386,7 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
     _openAppChooser(window, listKey) {
         const currentList = window._settings.get_strv(listKey);
         const mode = window._settings.get_string(ExtensionConstants.SETTING_FILTER_MODE);
+        const existingAppIds = new Set(currentList.map(appId => this._normalizeAppId(appId)).filter(Boolean));
 
         // Create dialog window
         const dialog = new Adw.Window({
@@ -357,8 +459,8 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
             const appId = appInfo.get_id();
             if (!appId) return;
 
-            // Skip already added apps
-            if (currentList.includes(appId)) return;
+            // Skip already added apps, including equivalent custom entries without .desktop.
+            if (existingAppIds.has(this._normalizeAppId(appId))) return;
 
             const displayName = appInfo.get_display_name();
 
@@ -444,13 +546,7 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
      * @private
      */
     _addAppToList(window, listKey, appId) {
-        const list = window._settings.get_strv(listKey);
-        if (list.includes(appId)) {
-            return;
-        }
-
-        list.push(appId);
-        window._settings.set_strv(listKey, list);
+        this._addAppIdToList(window, listKey, appId);
     }
 
     /**
@@ -644,6 +740,49 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
         } else {
             row.sensitive = false;
             row.subtitle = 'Hold while maximizing or fullscreening to use GNOME\'s default behavior (update required)';
+        }
+
+        return row;
+    }
+
+    _createPlacementModeRow(window) {
+        const schema = window._settings.settings_schema;
+        const hasKey = schema?.has_key?.(ExtensionConstants.SETTING_INSERT_WORKSPACE_AFTER_CURRENT);
+
+        const row = new Adw.ActionRow({
+            title: 'Place next to current workspace',
+            subtitle: 'Use an existing empty workspace after the current one when available',
+        });
+
+        row.add_prefix(new Gtk.Image({
+            icon_name: 'go-next-symbolic',
+            valign: Gtk.Align.CENTER,
+        }));
+
+        const toggle = new Gtk.Switch({
+            active: hasKey
+                ? window._settings.get_boolean(ExtensionConstants.SETTING_INSERT_WORKSPACE_AFTER_CURRENT)
+                : false,
+            valign: Gtk.Align.CENTER,
+        });
+
+        row.add_suffix(toggle);
+        row.activatable_widget = toggle;
+
+        if (hasKey) {
+            toggle.connect('notify::active', switchWidget => {
+                window._settings.set_boolean(
+                    ExtensionConstants.SETTING_INSERT_WORKSPACE_AFTER_CURRENT,
+                    switchWidget.active
+                );
+            });
+
+            window._settings.connect(`changed::${ExtensionConstants.SETTING_INSERT_WORKSPACE_AFTER_CURRENT}`, () => {
+                toggle.active = window._settings.get_boolean(ExtensionConstants.SETTING_INSERT_WORKSPACE_AFTER_CURRENT);
+            });
+        } else {
+            row.sensitive = false;
+            row.subtitle = 'Use an existing empty workspace after the current one when available (update required)';
         }
 
         return row;

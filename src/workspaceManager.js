@@ -95,6 +95,32 @@ export class WorkspaceManager {
     }
 
     /**
+     * Finds the first completely empty workspace after the given index
+     * @param {Object} manager - Workspace manager instance
+     * @param {number} afterIndex - Only consider workspaces after this index
+     * @returns {number} Workspace index or -1 if none found
+     */
+    getFirstCompletelyEmptyWorkspaceAfter(manager, afterIndex) {
+        if (!manager) {
+            return -1;
+        }
+
+        const workspaceCount = manager.get_n_workspaces();
+        for (let i = afterIndex + 1; i < workspaceCount; i++) {
+            const workspace = manager.get_workspace_by_index(i);
+            if (!workspace) {
+                continue;
+            }
+
+            if (this._getWindowCount(workspace) === 0) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
      * Checks if workspaces are only on primary monitor
      * @returns {boolean}
      */
@@ -121,6 +147,22 @@ export class WorkspaceManager {
             .filter(w => {
                 try {
                     return !w.is_always_on_all_workspaces() && w.get_monitor() === monitor;
+                } catch (error) {
+                    return false;
+                }
+            })
+            .length;
+    }
+
+    _getWindowCount(workspace) {
+        if (!workspace) {
+            return 0;
+        }
+
+        return workspace.list_windows()
+            .filter(w => {
+                try {
+                    return !w.is_always_on_all_workspaces();
                 } catch (error) {
                     return false;
                 }
