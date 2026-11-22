@@ -86,22 +86,23 @@ export class WindowFilter {
      * Checks if a size change warrants returning to old workspace
      * @param {Object} window - Meta window object
      * @param {Meta.SizeChange} change - The type of size change
-     * @param {Meta.Rectangle} oldRect - Previous window rectangle
      * @returns {boolean}
      */
-    shouldReturnOnSizeChange(window, change, oldRect) {
+    shouldReturnOnSizeChange(window, change) {
         if (!this.isManagedWindow(window)) {
             return false;
         }
 
-        const workArea = window.get_work_area_for_monitor(window.get_monitor());
-
         const triggerOnMaximize = this._getTriggerOnMaximizeEnabled();
         const triggerOnFullscreen = this._getTriggerOnFullscreenEnabled();
-        
-        const isUnmaximizing = triggerOnMaximize && 
+
+        // Mutter 51 clears maximize flags before emitting UNMAXIMIZE. Check
+        // the resulting state instead of relying on exact frame geometry.
+        const isUnmaximizing = triggerOnMaximize &&
                               change === Meta.SizeChange.UNMAXIMIZE &&
-                              workArea.equal(oldRect);
+                              !window.maximized_horizontally &&
+                              !window.maximized_vertically &&
+                              !window.fullscreen;
         
         const isUnfullscreening = triggerOnFullscreen &&
                                  change === Meta.SizeChange.UNFULLSCREEN &&

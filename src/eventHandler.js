@@ -111,9 +111,8 @@ export class WindowEventHandler {
      * Handles window size change event (during change)
      * @param {Object} actor - Window actor
      * @param {Meta.SizeChange} change - Type of size change
-     * @param {Meta.Rectangle} oldRect - Previous window rectangle
      */
-    onWindowSizeChange(actor, change, oldRect) {
+    onWindowSizeChange(actor, change) {
         const window = actor?.meta_window;
         if (!window) {
             return;
@@ -133,7 +132,7 @@ export class WindowEventHandler {
         
         if (this._windowFilter.shouldPlaceOnSizeChange(window, change)) {
             this._pendingActions.set(windowId, ExtensionConstants.MARKER_PLACE);
-        } else if (this._windowFilter.shouldReturnOnSizeChange(window, change, oldRect)) {
+        } else if (this._windowFilter.shouldReturnOnSizeChange(window, change)) {
             this._pendingActions.set(windowId, ExtensionConstants.MARKER_BACK);
         }
     }
