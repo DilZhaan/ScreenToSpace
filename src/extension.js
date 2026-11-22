@@ -98,8 +98,8 @@ export default class ScreenToSpaceExtension extends Extension {
             wm.connect(C.SIGNAL_DESTROY, (_, actor) => this._eventHandler.onWindowDestroy(actor)),
             wm.connect(C.SIGNAL_UNMINIMIZE, (_, actor) => this._eventHandler.onWindowUnminimize(actor)),
             wm.connect(C.SIGNAL_MINIMIZE, (_, actor) => this._eventHandler.onWindowMinimize(actor)),
-            wm.connect(C.SIGNAL_SIZE_CHANGE, (_, actor, change, oldRect) => 
-                this._eventHandler.onWindowSizeChange(actor, change, oldRect)),
+            wm.connect(C.SIGNAL_SIZE_CHANGE, (_, actor, change) =>
+                this._eventHandler.onWindowSizeChange(actor, change)),
             wm.connect(C.SIGNAL_SIZE_CHANGED, (_, actor) => 
                 this._eventHandler.onWindowSizeChanged(actor)),
             wm.connect(C.SIGNAL_SWITCH_WORKSPACE, () => 

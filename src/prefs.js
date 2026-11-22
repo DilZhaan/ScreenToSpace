@@ -10,6 +10,7 @@
 
 import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
+import GioUnix from 'gi://GioUnix';
 import Gtk from 'gi://Gtk';
 
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
@@ -345,7 +346,7 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
             group._rowsCache.push(emptyRow);
         } else {
             apps.forEach(appId => {
-                const appInfo = Gio.DesktopAppInfo.new(appId);
+                const appInfo = GioUnix.DesktopAppInfo.new(appId);
                 const row = new Adw.ActionRow({
                     title: appInfo ? appInfo.get_display_name() : appId,
                     subtitle: appId,
@@ -679,7 +680,7 @@ export default class ScreenToSpacePreferences extends ExtensionPreferences {
             }
 
             const mode = getModeFromSettings();
-            const nextSelected = Math.max(values.indexOf(mode), 2);
+            const nextSelected = Math.max(values.indexOf(mode), 0);
             if (row.selected !== nextSelected) {
                 isUpdating = true;
                 row.selected = nextSelected;
